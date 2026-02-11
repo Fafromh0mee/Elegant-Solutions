@@ -1,8 +1,8 @@
 FROM python:3.11-slim
 
-# System deps for OpenCV headless
+# System deps for OpenCV headless + build tools for insightface
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    libgl1 libglib2.0-0 && \
+    libgl1 libglib2.0-0 build-essential python3-dev && \
     rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
