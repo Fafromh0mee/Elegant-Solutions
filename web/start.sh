@@ -3,7 +3,7 @@
 echo "=== Starting deployment ==="
 
 echo "Running database migration..."
-node migrate.mjs 2>&1 || {
+NODE_PATH=./migrate_modules node migrate.mjs 2>&1 || {
   echo "WARNING: Migration had issues, starting anyway..."
 }
 
