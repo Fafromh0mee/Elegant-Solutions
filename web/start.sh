@@ -2,9 +2,9 @@
 
 echo "=== Starting deployment ==="
 
-echo "Running database migration..."
-NODE_PATH=./migrate_modules node migrate.mjs 2>&1 || {
-  echo "WARNING: Migration had issues, starting anyway..."
+echo "Running Prisma db push..."
+prisma db push --url "$DATABASE_URL" --schema ./prisma/schema.prisma --accept-data-loss 2>&1 || {
+  echo "WARNING: db push failed, starting anyway..."
 }
 
 echo "Starting Next.js server..."
