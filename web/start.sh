@@ -2,9 +2,9 @@
 
 echo "=== Starting deployment ==="
 
-echo "Running Prisma db push..."
-prisma db push --skip-generate --accept-data-loss 2>&1 || {
-  echo "WARNING: db push failed, starting anyway..."
+echo "Running database migration..."
+node migrate.mjs 2>&1 || {
+  echo "WARNING: Migration had issues, starting anyway..."
 }
 
 echo "Starting Next.js server..."
