@@ -55,18 +55,31 @@ export async function POST(req: NextRequest) {
     }
 
     // Call AI service to verify
-    const aiRes = await fetch(`${AI_SERVICE_URL}/verify`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        image_base64,
-        embeddings: faceProfiles.map((fp) => ({
-          user_id: fp.userId,
-          embedding: fp.embedding,
-        })),
-        threshold: FACE_THRESHOLD,
-      }),
-    });
+    console.log(`[VERIFY] Calling AI service at: ${AI_SERVICE_URL}/verify`);
+    
+    let aiRes;
+    try {
+      aiRes = await fetch(`${AI_SERVICE_URL}/verify`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          image_base64,
+          embeddings: faceProfiles.map((fp) => ({
+            user_id: fp.userId,
+            embedding: fp.embedding,
+          })),
+          threshold: FACE_THRESHOLD,
+        }),
+        signal: AbortSignal.timeout(30000), // 30s timeout
+      });
+    } catch (err) {
+      console.error("[VERIFY] Fetch failed:", err);
+      return NextResponse.json({
+        matched: false,
+        face_detected: false,
+        message: "ไม่สามารถเชื่อมต่อ AI Service ได้",
+      });
+    }
 
     if (!aiRes.ok) {
       console.error("AI service verify error:", await aiRes.text());

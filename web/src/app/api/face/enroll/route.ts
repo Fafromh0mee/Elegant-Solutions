@@ -27,14 +27,30 @@ export async function POST(req: NextRequest) {
     }
 
     // Call AI service
-    const aiRes = await fetch(`${AI_SERVICE_URL}/enroll`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        user_id: session.user.id,
-        images_base64,
-      }),
-    });
+    console.log(`[ENROLL] Calling AI service at: ${AI_SERVICE_URL}/enroll`);
+    
+    let aiRes;
+    try {
+      aiRes = await fetch(`${AI_SERVICE_URL}/enroll`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          user_id: session.user.id,
+          images_base64,
+        }),
+        signal: AbortSignal.timeout(30000), // 30s timeout
+      });
+    } catch (err) {
+      console.error("[ENROLL] Fetch failed:", err);
+      return NextResponse.json(
+        { 
+          error: "ไม่สามารถเชื่อมต่อ AI Service ได้", 
+          detail: err instanceof Error ? err.message : String(err),
+          url: AI_SERVICE_URL 
+        },
+        { status: 503 }
+      );
+    }
 
     if (!aiRes.ok) {
       const errText = await aiRes.text();
