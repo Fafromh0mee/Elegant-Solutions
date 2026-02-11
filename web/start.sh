@@ -3,7 +3,7 @@
 echo "=== Starting deployment ==="
 
 echo "Running Prisma db push..."
-prisma db push --schema=./prisma/schema.prisma --skip-generate --accept-data-loss 2>&1 || {
+prisma db push --skip-generate --accept-data-loss 2>&1 || {
   echo "WARNING: db push failed, starting anyway..."
 }
 

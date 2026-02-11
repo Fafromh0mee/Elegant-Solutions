@@ -23,13 +23,15 @@ ENV NODE_ENV=production
 RUN addgroup --system --gid 1001 nodejs
 RUN adduser --system --uid 1001 nextjs
 
-# Install prisma CLI globally for migrations
-RUN npm install -g prisma@^7.3.0
+# Install prisma CLI + tsx for prisma.config.ts
+RUN npm install -g prisma@^7.3.0 tsx
 
 COPY --from=builder /app/public ./public
 COPY --from=builder /app/.next/standalone ./
 COPY --from=builder /app/.next/static ./.next/static
 COPY --from=builder /app/prisma ./prisma
+COPY --from=builder /app/prisma.config.ts ./prisma.config.ts
+COPY --from=builder /app/package.json ./package.json
 
 COPY --from=builder /app/start.sh ./
 RUN chmod +x start.sh
