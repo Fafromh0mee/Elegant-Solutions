@@ -1,0 +1,170 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Role {
+  ADMIN
+  STAFF
+  GUEST
+}
+
+enum SessionStatus {
+  ACTIVE
+  COMPLETED
+}
+
+enum LogAction {
+  CHECK_IN
+  CHECK_OUT
+  ACCESS_DENIED
+  TOKEN_GENERATED
+  GROUP_CREATED
+  USER_CREATED
+  ROOM_CREATED
+  ROOM_UPDATED
+  USER_UPDATED
+  FACE_ENROLLED
+  FACE_VERIFIED
+  FACE_DENIED
+}
+
+model User {
+  id             String   @id @default(cuid())
+  email          String   @unique
+  name           String
+  hashedPassword String
+  role           Role     @default(GUEST)
+  phone          String?
+  avatarUrl      String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  // Relations
+  accessTokens   AccessToken[]
+  sessions       Session[]
+  logs           Log[]
+  ownedGroups    Group[]        @relation("GroupOwner")
+  groupMembers   GroupMember[]
+  faceProfile    FaceProfile?
+
+  @@map("users")
+}
+
+model Room {
+  id          String   @id @default(cuid())
+  name        String
+  roomCode    String   @unique
+  description String?
+  capacity    Int      @default(0)
+  guestAccess Boolean  @default(false)
+  staffOnly   Boolean  @default(false)
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  accessTokens AccessToken[]
+  sessions     Session[]
+  logs         Log[]
+
+  @@map("rooms")
+}
+
+model AccessToken {
+  id        String   @id @default(cuid())
+  token     String   @unique @default(cuid())
+  userId    String
+  roomId    String
+  groupId   String?
+  validFrom DateTime
+  validTo   DateTime
+  isUsed    Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  // Relations
+  user  User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  room  Room   @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  group Group? @relation(fields: [groupId], references: [id], onDelete: SetNull)
+
+  @@map("access_tokens")
+}
+
+model Group {
+  id        String   @id @default(cuid())
+  name      String
+  code      String   @unique @default(cuid())
+  ownerId   String
+  createdAt DateTime @default(now())
+
+  // Relations
+  owner        User          @relation("GroupOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  members      GroupMember[]
+  accessTokens AccessToken[]
+
+  @@map("groups")
+}
+
+model GroupMember {
+  id       String @id @default(cuid())
+  groupId  String
+  userId   String
+  joinedAt DateTime @default(now())
+
+  // Relations
+  group Group @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([groupId, userId])
+  @@map("group_members")
+}
+
+model Session {
+  id         String        @id @default(cuid())
+  userId     String
+  roomId     String
+  checkIn    DateTime      @default(now())
+  checkOut   DateTime?
+  status     SessionStatus @default(ACTIVE)
+  createdAt  DateTime      @default(now())
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  room Room @relation(fields: [roomId], references: [id], onDelete: Cascade)
+
+  @@map("sessions")
+}
+
+model Log {
+  id        String    @id @default(cuid())
+  userId    String?
+  roomId    String?
+  action    LogAction
+  details   String?
+  createdAt DateTime  @default(now())
+
+  // Relations
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+  room Room? @relation(fields: [roomId], references: [id], onDelete: SetNull)
+
+  @@map("logs")
+}
+
+model FaceProfile {
+  id           String   @id @default(cuid())
+  userId       String   @unique
+  embedding    Float[]
+  modelVersion String   @default("buffalo_l")
+  qualityScore Float?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("face_profiles")
+}

@@ -1,0 +1,123 @@
+@import "tailwindcss";
+
+@layer base {
+  :root {
+    --color-primary: #75A6FF;
+    --color-primary-dark: #5E91F0;
+    --color-primary-light: #E1EEF1;
+    --color-secondary: #8F98CC;
+    --color-secondary-dark: #7A83B8;
+    --color-cta: #2E306F;
+    --color-cta-dark: #232556;
+    --color-accent: #A9D3DF;
+    --color-success: #22c55e;
+    --color-danger: #ef4444;
+    --color-warning: #f59e0b;
+    --color-bg: #f8fafc;
+    --color-surface: #ffffff;
+    --color-border: #e2e8f0;
+    --color-text: #0f172a;
+    --color-text-muted: #64748b;
+  }
+
+  * {
+    @apply border-(--color-border);
+  }
+
+  body {
+    @apply bg-(--color-bg) text-(--color-text) antialiased;
+    font-feature-settings: "rlig" 1, "calt" 1;
+  }
+}
+
+@layer components {
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2.5
+           text-sm font-medium transition-all duration-200
+           focus:outline-none focus:ring-2 focus:ring-offset-2
+           disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+
+  .btn-primary {
+    @apply inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2.5
+           text-sm font-medium transition-all duration-200
+           focus:outline-none focus:ring-2 focus:ring-offset-2
+           disabled:opacity-50 disabled:cursor-not-allowed
+           bg-(--color-primary) text-white
+           hover:bg-(--color-primary-dark)
+           focus:ring-(--color-primary);
+  }
+
+  .btn-secondary {
+    @apply inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2.5
+           text-sm font-medium transition-all duration-200
+           focus:outline-none focus:ring-2 focus:ring-offset-2
+           disabled:opacity-50 disabled:cursor-not-allowed
+           bg-(--color-surface) text-(--color-text) border
+           hover:bg-gray-50 focus:ring-gray-300;
+  }
+
+  .btn-danger {
+    @apply inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2.5
+           text-sm font-medium transition-all duration-200
+           focus:outline-none focus:ring-2 focus:ring-offset-2
+           disabled:opacity-50 disabled:cursor-not-allowed
+           bg-(--color-danger) text-white
+           hover:bg-red-600 focus:ring-(--color-danger);
+  }
+
+  .btn-success {
+    @apply inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2.5
+           text-sm font-medium transition-all duration-200
+           focus:outline-none focus:ring-2 focus:ring-offset-2
+           disabled:opacity-50 disabled:cursor-not-allowed
+           bg-(--color-success) text-white
+           hover:bg-green-600 focus:ring-(--color-success);
+  }
+
+  .card {
+    @apply bg-(--color-surface) rounded-xl border shadow-sm p-6;
+  }
+
+  .input {
+    @apply w-full rounded-lg border bg-(--color-surface) px-4 py-2.5
+           text-sm text-(--color-text)
+           placeholder:text-(--color-text-muted)
+           focus:outline-none focus:ring-2 focus:ring-(--color-secondary) focus:border-transparent
+           disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+
+  .label {
+    @apply text-sm font-medium text-(--color-text) mb-1.5 block;
+  }
+
+  .badge {
+    @apply inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium;
+  }
+
+  .badge-admin {
+    @apply inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium
+           bg-(--color-primary-light) text-(--color-cta);
+  }
+
+  .badge-staff {
+    @apply inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium;
+    background-color: #8F98CC1A;
+    color: var(--color-secondary);
+  }
+
+  .badge-guest {
+    @apply inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium
+           bg-green-100 text-green-800;
+  }
+}
+
+@keyframes scan-line {
+  0% { top: 1rem; }
+  50% { top: calc(100% - 1rem); }
+  100% { top: 1rem; }
+}
+
+.animate-scan-line {
+  animation: scan-line 2s ease-in-out infinite;
+}
