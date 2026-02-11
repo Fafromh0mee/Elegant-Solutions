@@ -34,6 +34,9 @@ COPY --from=builder /app/prisma.config.ts ./prisma.config.ts
 COPY --from=builder /app/package.json ./package.json
 COPY --from=builder /app/migrate.mjs ./migrate.mjs
 
+# Install pg for migration script
+RUN npm install pg
+
 COPY --from=builder /app/start.sh ./
 RUN chmod +x start.sh
 
