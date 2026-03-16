@@ -164,7 +164,7 @@ export default function HomePage() {
       </section>
 
       {/* Features */}
-      <section className="py-24 bg-white">
+      <section id="features" className="py-24 bg-white">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <div className="mx-auto max-w-2xl text-center mb-16">
             <span className="badge-admin">Core Value</span>
@@ -193,7 +193,10 @@ export default function HomePage() {
       </section>
 
       {/* Who It's For */}
-      <section className="py-24 bg-linear-to-b from-gray-50 to-blue-50">
+      <section
+        id="use-case"
+        className="py-24 bg-linear-to-b from-gray-50 to-blue-50"
+      >
         <div className="mx-auto grid max-w-7xl gap-12 px-4 sm:px-6 lg:grid-cols-[0.95fr_1.05fr] lg:px-8">
           <div className="lg:pr-10">
             <span className="badge-admin">Use Cases</span>
@@ -289,7 +292,7 @@ export default function HomePage() {
       </section>
 
       {/* FAQ */}
-      <section className="py-24 bg-white">
+      <section id="FAQ" className="py-24 bg-white">
         <div className="mx-auto max-w-5xl px-4 sm:px-6 lg:px-8">
           <div className="mx-auto max-w-2xl text-center">
             <span className="badge-admin">FAQ</span>
@@ -335,28 +338,28 @@ export default function HomePage() {
                 </h4>
                 <ul className="space-y-2 text-sm">
                   <li>
-                    <a
-                      href="#"
+                    <Link
+                      href="/#features"
                       className="text-gray-700 hover:text-(--color-primary) transition-colors"
                     >
                       ฟีเจอร์หลัก
-                    </a>
+                    </Link>
                   </li>
                   <li>
-                    <a
-                      href="#"
+                    <Link
+                      href="/#use-case"
                       className="text-gray-700 hover:text-(--color-primary) transition-colors"
                     >
                       Use Cases
-                    </a>
+                    </Link>
                   </li>
                   <li>
-                    <a
-                      href="#"
+                    <Link
+                      href="/#FAQ"
                       className="text-gray-700 hover:text-(--color-primary) transition-colors"
                     >
                       FAQ
-                    </a>
+                    </Link>
                   </li>
                 </ul>
               </div>
@@ -377,10 +380,10 @@ export default function HomePage() {
                   </li>
                   <li>
                     <a
-                      href="tel:061021xxxx"
+                      href="tel:xxxxxxxxxx"
                       className="text-gray-700 hover:text-(--color-primary) transition-colors"
                     >
-                      061-021-xxxx
+                      xxx-xxx-xxxx
                     </a>
                   </li>
                   <li className="text-gray-600">กรุงเทพมหานคร, ประเทศไทย</li>
