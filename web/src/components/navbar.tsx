@@ -24,6 +24,70 @@ export function Navbar() {
             {/* <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-(--color-primary) text-white font-bold text-sm">
               ES
             </div> */}
+            <svg
+              width="50"
+              height="50"
+              viewBox="0 0 100 100"
+              fill="none"
+              xmlns="http://www.w3.org/2000/svg"
+            >
+              <rect
+                x="20"
+                y="12"
+                width="59.1667"
+                height="75.8333"
+                rx="26.7473"
+                fill="url(#paint0_radial_504_8)"
+              />
+              <path
+                d="M33.75 81.5C22.5 81.5 20 65 20 61.9167C20 58.8333 24.1667 68.0265 42.0833 61.7765C55.0868 57.2404 77.0889 44.6574 88.1781 38.0974C89.0396 37.5878 89.9257 38.7414 89.1899 39.4201C75.6812 51.8801 42.6338 81.5 33.75 81.5Z"
+                fill="url(#paint1_radial_504_8)"
+              />
+              <path
+                d="M38.4946 28.6398V35.3064"
+                stroke="#0041C9"
+                stroke-width="5"
+                stroke-linecap="round"
+              />
+              <path
+                d="M45.1613 46.1393C48.6792 48.5428 50.495 48.4624 53.4946 46.1393"
+                stroke="#0041C9"
+                stroke-width="5"
+                stroke-linecap="round"
+              />
+              <path
+                d="M60.9946 28.6398V35.3064"
+                stroke="#0041C9"
+                stroke-width="5"
+                stroke-linecap="round"
+              />
+              <defs>
+                <radialGradient
+                  id="paint0_radial_504_8"
+                  cx="0"
+                  cy="0"
+                  r="1"
+                  gradientTransform="matrix(-10.6359 70.2967 -54.8468 -5.70751 60.2193 17.5367)"
+                  gradientUnits="userSpaceOnUse"
+                >
+                  <stop stop-color="#B7D7FF" />
+                  <stop offset="0.652855" stop-color="#67ACFF" />
+                  <stop offset="1" stop-color="#2E67AC" />
+                </radialGradient>
+                <radialGradient
+                  id="paint1_radial_504_8"
+                  cx="0"
+                  cy="0"
+                  r="1"
+                  gradientUnits="userSpaceOnUse"
+                  gradientTransform="translate(90.8333 35.25) rotate(143.302) scale(77.3933 122.2)"
+                >
+                  <stop stop-color="#6999FF" />
+                  <stop offset="0.576923" stop-color="#0052FF" />
+                  <stop offset="1" stop-color="#003199" />
+                </radialGradient>
+              </defs>
+            </svg>
             <span className="text-lg font-bold text-gray-900">
               Elegant Solutions
             </span>
