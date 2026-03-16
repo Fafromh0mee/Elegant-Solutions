@@ -61,6 +61,7 @@ export async function changePasswordAction(input: {
     });
 
     if (!user) return { error: "ไม่พบผู้ใช้" };
+    if (!user.hashedPassword) return { error: "บัญชีนี้ไม่ได้ตั้งรหัสผ่านไว้" };
 
     const isValid = await compare(input.currentPassword, user.hashedPassword);
     if (!isValid) return { error: "รหัสผ่านปัจจุบันไม่ถูกต้อง" };

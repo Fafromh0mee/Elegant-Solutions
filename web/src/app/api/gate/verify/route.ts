@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { verifyAccessTokenAction } from "@/actions/access-tokens";
+import { verifyGateAccessAction } from "@/actions/access-tokens";
 
 export async function POST(req: NextRequest) {
   try {
@@ -12,7 +12,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const result = await verifyAccessTokenAction(token, roomCode);
+    const result = await verifyGateAccessAction(token, roomCode);
     return NextResponse.json(result);
   } catch (error) {
     console.error("Gate verify error:", error);

@@ -6,6 +6,7 @@ import { useSession, signOut } from "next-auth/react";
 import { useState } from "react";
 import { Menu, X, LogOut, User, LayoutDashboard, Shield } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { isAdminRole } from "@/lib/permissions";
 
 export function Navbar() {
   const pathname = usePathname();
@@ -20,9 +21,9 @@ export function Navbar() {
         <div className="flex h-16 items-center justify-between">
           {/* Logo */}
           <Link href="/" className="flex items-center gap-2">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-(--color-primary) text-white font-bold text-sm">
+            {/* <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-(--color-primary) text-white font-bold text-sm">
               ES
-            </div>
+            </div> */}
             <span className="text-lg font-bold text-gray-900">
               Elegant Solutions
             </span>
@@ -39,7 +40,7 @@ export function Navbar() {
 
             {session?.user ? (
               <>
-                {session.user.role === "ADMIN" ? (
+                {isAdminRole(session.user.role) ? (
                   <NavLink
                     href="/admin/dashboard"
                     active={pathname.startsWith("/admin")}
@@ -48,10 +49,7 @@ export function Navbar() {
                     Admin
                   </NavLink>
                 ) : (
-                  <NavLink
-                    href="/dashboard"
-                    active={isActive("/dashboard")}
-                  >
+                  <NavLink href="/dashboard" active={isActive("/dashboard")}>
                     <LayoutDashboard className="h-4 w-4" />
                     Dashboard
                   </NavLink>
@@ -85,7 +83,11 @@ export function Navbar() {
             className="md:hidden p-2"
             onClick={() => setMobileOpen(!mobileOpen)}
           >
-            {mobileOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
+            {mobileOpen ? (
+              <X className="h-6 w-6" />
+            ) : (
+              <Menu className="h-6 w-6" />
+            )}
           </button>
         </div>
 
@@ -100,16 +102,25 @@ export function Navbar() {
             </MobileLink>
             {session?.user ? (
               <>
-                {session.user.role === "ADMIN" ? (
-                  <MobileLink href="/admin/dashboard" onClick={() => setMobileOpen(false)}>
+                {isAdminRole(session.user.role) ? (
+                  <MobileLink
+                    href="/admin/dashboard"
+                    onClick={() => setMobileOpen(false)}
+                  >
                     Admin Dashboard
                   </MobileLink>
                 ) : (
-                  <MobileLink href="/dashboard" onClick={() => setMobileOpen(false)}>
+                  <MobileLink
+                    href="/dashboard"
+                    onClick={() => setMobileOpen(false)}
+                  >
                     Dashboard
                   </MobileLink>
                 )}
-                <MobileLink href="/profile" onClick={() => setMobileOpen(false)}>
+                <MobileLink
+                  href="/profile"
+                  onClick={() => setMobileOpen(false)}
+                >
                   โปรไฟล์
                 </MobileLink>
                 <button
@@ -124,10 +135,18 @@ export function Navbar() {
               </>
             ) : (
               <div className="flex gap-2 px-4 pt-2">
-                <Link href="/login" className="btn-secondary flex-1" onClick={() => setMobileOpen(false)}>
+                <Link
+                  href="/login"
+                  className="btn-secondary flex-1"
+                  onClick={() => setMobileOpen(false)}
+                >
                   เข้าสู่ระบบ
                 </Link>
-                <Link href="/register" className="btn-primary flex-1" onClick={() => setMobileOpen(false)}>
+                <Link
+                  href="/register"
+                  className="btn-primary flex-1"
+                  onClick={() => setMobileOpen(false)}
+                >
                   สมัครสมาชิก
                 </Link>
               </div>
@@ -155,7 +174,7 @@ function NavLink({
         "inline-flex items-center gap-1.5 px-3 py-2 text-sm font-medium rounded-lg transition-colors",
         active
           ? "bg-(--color-primary-light) text-(--color-primary)"
-          : "text-gray-600 hover:text-gray-900 hover:bg-gray-50"
+          : "text-gray-600 hover:text-gray-900 hover:bg-gray-50",
       )}
     >
       {children}

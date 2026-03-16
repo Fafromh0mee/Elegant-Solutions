@@ -33,11 +33,11 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    // Get all enrolled STAFF face profiles
+    // Get all enrolled non-guest face profiles
     const faceProfiles = await prisma.faceProfile.findMany({
       where: {
         user: {
-          role: { in: ["STAFF", "ADMIN"] },
+          role: { not: "GUEST" },
         },
       },
       select: {
@@ -123,13 +123,13 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    // Check if room is staffOnly and user is GUEST
+    // Check if room is student-tier and user is GUEST
     if (room.staffOnly && user.role === "GUEST") {
       return NextResponse.json({
         matched: true,
         face_detected: true,
         score: aiData.score,
-        message: "ห้องนี้สำหรับ STAFF เท่านั้น",
+        message: "ห้องนี้สำหรับ STUDENT เท่านั้น",
         access_granted: false,
         user: { id: user.id, name: user.name, role: user.role },
       });

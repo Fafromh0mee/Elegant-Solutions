@@ -101,11 +101,13 @@ export function ProfileClient({ user }: { user: AuthUser }) {
           <span className="text-sm text-gray-500">บทบาท: </span>
           <span
             className={
-              user.role === "ADMIN"
-                ? "badge-admin"
-                : user.role === "STAFF"
-                ? "badge-staff"
-                : "badge-guest"
+              user.role === "SUPER_ADMIN"
+                ? "badge-super-admin"
+                : user.role === "ADMIN"
+                  ? "badge-admin"
+                  : user.role === "STUDENT"
+                    ? "badge-student"
+                    : "badge-guest"
             }
           >
             {user.role}

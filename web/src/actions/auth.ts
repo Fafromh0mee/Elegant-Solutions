@@ -28,7 +28,8 @@ export async function registerAction(input: RegisterInput) {
         email: input.email,
         hashedPassword,
         phone: input.phone || null,
-        role: "GUEST", // Always GUEST when self-registering
+        role: "GUEST",
+        status: "PENDING",
       },
     });
 

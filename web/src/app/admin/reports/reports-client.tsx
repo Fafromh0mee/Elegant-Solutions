@@ -12,11 +12,7 @@ interface SessionItem {
   room: { id: string; name: string; roomCode: string };
 }
 
-export function ReportsClient({
-  sessions,
-}: {
-  sessions: SessionItem[];
-}) {
+export function ReportsClient({ sessions }: { sessions: SessionItem[] }) {
   const [loading, setLoading] = useState(false);
 
   async function handleExport() {
@@ -64,15 +60,21 @@ export function ReportsClient({
       {/* Summary */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
         <div className="card">
-          <p className="text-3xl font-bold text-(--color-secondary)">{sessions.length}</p>
+          <p className="text-3xl font-bold text-(--color-secondary)">
+            {sessions.length}
+          </p>
           <p className="text-sm text-gray-500">Sessions ทั้งหมด</p>
         </div>
         <div className="card">
-          <p className="text-3xl font-bold text-amber-600">{activeSessions.length}</p>
+          <p className="text-3xl font-bold text-amber-600">
+            {activeSessions.length}
+          </p>
           <p className="text-sm text-gray-500">กำลังใช้งาน</p>
         </div>
         <div className="card">
-          <p className="text-3xl font-bold text-green-600">{completedSessions.length}</p>
+          <p className="text-3xl font-bold text-green-600">
+            {completedSessions.length}
+          </p>
           <p className="text-sm text-gray-500">เสร็จสิ้น</p>
         </div>
       </div>
@@ -101,11 +103,13 @@ export function ReportsClient({
                 <td className="py-3 pr-4">
                   <span
                     className={
-                      session.user.role === "ADMIN"
-                        ? "badge-admin"
-                        : session.user.role === "STAFF"
-                        ? "badge-staff"
-                        : "badge-guest"
+                      session.user.role === "SUPER_ADMIN"
+                        ? "badge-super-admin"
+                        : session.user.role === "ADMIN"
+                          ? "badge-admin"
+                          : session.user.role === "STUDENT"
+                            ? "badge-student"
+                            : "badge-guest"
                     }
                   >
                     {session.user.role}

@@ -13,6 +13,7 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -39,6 +40,12 @@ export default function LoginPage() {
     }
   };
 
+  const handleGoogleSignIn = async () => {
+    setError("");
+    setGoogleLoading(true);
+    await signIn("google", { callbackUrl: "/dashboard" });
+  };
+
   return (
     <div className="min-h-screen flex items-center justify-center bg-linear-to-b from-(--color-primary-light) to-white px-4">
       <div className="w-full max-w-md">
@@ -57,6 +64,10 @@ export default function LoginPage() {
         {/* Card */}
         <div className="card">
           <h1 className="text-2xl font-bold text-center mb-6">เข้าสู่ระบบ</h1>
+
+          <div className="mb-4 rounded-lg border border-blue-100 bg-blue-50 px-3 py-2 text-xs text-blue-800">
+            นักศึกษา: เข้าระบบด้วย Google | Guest: ใช้อีเมลและรหัสผ่าน
+          </div>
 
           {error && (
             <div className="mb-4 rounded-lg bg-red-50 border border-red-200 p-3 text-sm text-red-700">
@@ -121,6 +132,23 @@ export default function LoginPage() {
               {loading ? "กำลังเข้าสู่ระบบ..." : "เข้าสู่ระบบ"}
             </button>
           </form>
+
+          <div className="my-4 flex items-center gap-3">
+            <div className="h-px flex-1 bg-gray-200" />
+            <span className="text-xs text-gray-400">หรือ</span>
+            <div className="h-px flex-1 bg-gray-200" />
+          </div>
+
+          <button
+            type="button"
+            onClick={handleGoogleSignIn}
+            disabled={googleLoading}
+            className="btn-secondary w-full"
+          >
+            {googleLoading
+              ? "กำลังเชื่อมต่อ Google..."
+              : "เข้าสู่ระบบด้วย Google (Student)"}
+          </button>
 
           <p className="mt-6 text-center text-sm text-gray-500">
             ยังไม่มีบัญชี?{" "}

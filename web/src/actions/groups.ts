@@ -115,7 +115,27 @@ export async function generateGroupTokenAction(input: {
   const session = await auth();
   if (!session) return { error: "กรุณาเข้าสู่ระบบ" };
 
+  if (session.user.role === "GUEST" && session.user.status !== "APPROVED") {
+    return { error: "บัญชี Guest ยังไม่ได้รับการอนุมัติ" };
+  }
+
   try {
+    const validFrom = new Date(input.validFrom);
+    const validTo = new Date(input.validTo);
+    const now = new Date();
+
+    if (Number.isNaN(validFrom.getTime()) || Number.isNaN(validTo.getTime())) {
+      return { error: "รูปแบบวันเวลาไม่ถูกต้อง" };
+    }
+
+    if (validFrom <= now) {
+      return { error: "เวลาเริ่มต้นต้องเป็นเวลาในอนาคต" };
+    }
+
+    if (validTo <= validFrom) {
+      return { error: "เวลาสิ้นสุดต้องมากกว่าเวลาเริ่มต้น" };
+    }
+
     const group = await prisma.group.findUnique({
       where: { id: input.groupId },
     });
@@ -141,8 +161,8 @@ export async function generateGroupTokenAction(input: {
         userId: session.user.id,
         roomId: input.roomId,
         groupId: input.groupId,
-        validFrom: new Date(input.validFrom),
-        validTo: new Date(input.validTo),
+        validFrom,
+        validTo,
       },
     });
 

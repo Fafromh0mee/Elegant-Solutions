@@ -1,0 +1,4 @@
+studentId,roomCode,dayOfWeek,startTime,endTime,subjectName,subjectCode
+65010001,A101,1,09:00,10:30,Data Structures,CS201
+65010002,B204,1,13:00,14:30,Database Systems,CS301
+65010003,C301,2,08:30,10:00,Software Engineering,CS305

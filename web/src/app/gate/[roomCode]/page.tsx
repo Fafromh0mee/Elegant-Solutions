@@ -15,7 +15,7 @@ import {
   ScanFace,
 } from "lucide-react";
 import { Html5Qrcode } from "html5-qrcode";
-import { verifyAccessTokenAction } from "@/actions/access-tokens";
+import { verifyGateAccessAction } from "@/actions/access-tokens";
 import { checkInAction, checkOutAction } from "@/actions/sessions";
 
 type GateStatus = "IDLE" | "SCANNING" | "OPEN" | "CLOSED";
@@ -41,7 +41,7 @@ export default function GatePage({
   const [inputMode, setInputMode] = useState<InputMode>("camera");
   const [cameraActive, setCameraActive] = useState(false);
   const [facingMode, setFacingMode] = useState<"environment" | "user">(
-    "environment"
+    "environment",
   );
   const [cameraError, setCameraError] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
@@ -55,7 +55,7 @@ export default function GatePage({
   const faceCanvasRef = useRef<HTMLCanvasElement>(null);
   const faceIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  // ───────── QR token processing (unchanged) ─────────
+  // ───────── QR token / studentId processing ─────────
   const processToken = useCallback(
     async (token: string) => {
       if (processingRef.current || !token.trim()) return;
@@ -74,11 +74,12 @@ export default function GatePage({
       }
 
       try {
-        const result = await verifyAccessTokenAction(token.trim(), roomCode);
+        const result = await verifyGateAccessAction(token.trim(), roomCode);
 
         if (!result.valid) {
           setStatus("CLOSED");
-          setMessage(result.reason || "การเข้าถึงถูกปฏิเสธ");
+          const deniedReason = "reason" in result ? result.reason : undefined;
+          setMessage(deniedReason || "การเข้าถึงถูกปฏิเสธ");
           setLoading(false);
           processingRef.current = false;
           return;
@@ -117,7 +118,7 @@ export default function GatePage({
           setMessage(
             isCheckOut
               ? `${result.isGroup ? "กลุ่ม" : ""} Check-out สำเร็จ`
-              : `${result.isGroup ? "กลุ่ม" : ""} Check-in สำเร็จ`
+              : `${result.isGroup ? "กลุ่ม" : ""} Check-in สำเร็จ`,
           );
         } else {
           setStatus("CLOSED");
@@ -132,7 +133,7 @@ export default function GatePage({
       setLoading(false);
       processingRef.current = false;
     },
-    [roomCode]
+    [roomCode],
   );
 
   // ───────── QR camera ─────────
@@ -158,13 +159,13 @@ export default function GatePage({
         { facingMode },
         { fps: 10, qrbox: { width: 250, height: 250 }, aspectRatio: 1 },
         (decodedText) => processToken(decodedText),
-        () => {}
+        () => {},
       );
       setCameraActive(true);
     } catch (err) {
       console.error("Camera error:", err);
       setCameraError(
-        "ไม่สามารถเปิดกล้องได้ กรุณาอนุญาตการเข้าถึงกล้อง หรือใช้โหมดอื่น"
+        "ไม่สามารถเปิดกล้องได้ กรุณาอนุญาตการเข้าถึงกล้อง หรือใช้โหมดอื่น",
       );
       setCameraActive(false);
     }
@@ -192,7 +193,11 @@ export default function GatePage({
     setFaceMessage("");
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: "user", width: { ideal: 640 }, height: { ideal: 480 } },
+        video: {
+          facingMode: "user",
+          width: { ideal: 640 },
+          height: { ideal: 480 },
+        },
       });
       setFaceStream(stream);
       if (faceVideoRef.current) {
@@ -251,7 +256,7 @@ export default function GatePage({
           setStatus(data.access_granted ? "OPEN" : "CLOSED");
           setVerifiedUsers([data.user]);
           setMessage(
-            `${data.is_check_out ? "Check-out" : "Check-in"} สำเร็จ (${Math.round(data.score * 100)}%)`
+            `${data.is_check_out ? "Check-out" : "Check-in"} สำเร็จ (${Math.round(data.score * 100)}%)`,
           );
           setFaceMessage("");
         } else if (data.matched && !data.access_granted) {
@@ -296,7 +301,7 @@ export default function GatePage({
       setCameraError("");
       setFaceMessage("");
     },
-    [inputMode, stopQrCamera, stopFaceCamera]
+    [inputMode, stopQrCamera, stopFaceCamera],
   );
 
   // Auto-start cameras
@@ -316,7 +321,8 @@ export default function GatePage({
   // Cleanup on unmount
   useEffect(() => {
     return () => {
-      if (html5QrRef.current?.isScanning) html5QrRef.current.stop().catch(() => {});
+      if (html5QrRef.current?.isScanning)
+        html5QrRef.current.stop().catch(() => {});
       if (faceIntervalRef.current) clearInterval(faceIntervalRef.current);
     };
   }, []);
@@ -349,8 +355,8 @@ export default function GatePage({
     status === "OPEN"
       ? "bg-green-500"
       : status === "CLOSED"
-      ? "bg-red-500"
-      : "bg-gray-900";
+        ? "bg-red-500"
+        : "bg-gray-900";
 
   return (
     <div
@@ -395,10 +401,10 @@ export default function GatePage({
             <button
               onClick={() => switchMode("manual")}
               className={`flex items-center gap-1.5 px-3 py-2 text-sm transition-colors ${inputMode === "manual" ? "bg-white/20 text-white" : "text-white/60 hover:text-white"}`}
-              title="กรอก Token"
+              title="กรอก Token หรือ Student ID"
             >
               <Keyboard className="h-4 w-4" />
-              <span className="hidden sm:inline">Token</span>
+              <span className="hidden sm:inline">Manual</span>
             </button>
           </div>
         </div>
@@ -455,7 +461,7 @@ export default function GatePage({
           <>
             <h1 className="text-2xl font-bold mb-4">สแกนใบหน้า</h1>
             <p className="text-sm text-white/60 mb-4">
-              หันหน้าเข้ากล้อง (STAFF เท่านั้น)
+              หันหน้าเข้ากล้อง (STUDENT เท่านั้น)
             </p>
             <div className="relative mx-auto w-full max-w-[320px] aspect-3/4 rounded-2xl overflow-hidden bg-black/50 mb-4">
               <video
@@ -515,16 +521,18 @@ export default function GatePage({
         {status === "IDLE" && inputMode === "manual" && (
           <>
             <QrCode className="h-16 w-16 mx-auto mb-4 animate-pulse" />
-            <h1 className="text-2xl font-bold mb-2">กรอก Token</h1>
+            <h1 className="text-2xl font-bold mb-2">
+              กรอก Token หรือ Student ID
+            </h1>
             <p className="text-sm text-white/60 mb-6">
-              กรอกรหัส Token เพื่อเข้า-ออกห้อง
+              กรอกรหัส Token หรือ Student ID เพื่อตรวจสอบสิทธิ์เข้า-ออกห้อง
             </p>
             <form onSubmit={handleManualScan} className="w-full">
               <input
                 ref={inputRef}
                 type="text"
                 className="w-full bg-white/10 border border-white/20 rounded-xl px-6 py-4 text-center text-white placeholder-white/40 text-lg focus:outline-none focus:ring-2 focus:ring-white/50"
-                placeholder="กรอก Token ที่นี่"
+                placeholder="กรอก Token หรือ Student ID"
                 value={tokenInput}
                 onChange={(e) => setTokenInput(e.target.value)}
                 disabled={loading}
@@ -568,8 +576,7 @@ export default function GatePage({
                 )}
                 {verifiedUsers.map((u) => (
                   <p key={u.id} className="text-sm">
-                    {u.name}{" "}
-                    <span className="text-white/70">({u.role})</span>
+                    {u.name} <span className="text-white/70">({u.role})</span>
                   </p>
                 ))}
               </div>

@@ -67,8 +67,12 @@ export default function RegisterPage() {
         <div className="card">
           <h1 className="text-2xl font-bold text-center mb-2">สมัครสมาชิก</h1>
           <p className="text-center text-sm text-gray-500 mb-6">
-            สร้างบัญชีเพื่อเริ่มใช้งานระบบ
+            สมัครแบบ Guest (ต้องรอ Admin อนุมัติก่อนใช้งาน)
           </p>
+
+          <div className="mb-4 rounded-lg border border-blue-100 bg-blue-50 px-3 py-2 text-xs text-blue-800">
+            หากเป็นนักศึกษา กรุณาใช้งานปุ่ม Google ที่หน้าเข้าสู่ระบบ
+          </div>
 
           {error && (
             <div className="mb-4 rounded-lg bg-red-50 border border-red-200 p-3 text-sm text-red-700">

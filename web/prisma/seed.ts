@@ -19,25 +19,27 @@ async function main() {
       name: "System Admin",
       hashedPassword: adminPassword,
       role: "ADMIN",
+      status: "APPROVED",
       phone: "02-000-0001",
     },
   });
   console.log(`✅ Admin created: ${admin.email}`);
 
-  // Create Staff user
+  // Create Student user
   const staffPassword = await hash("staff123", 12);
   const staff = await prisma.user.upsert({
     where: { email: "staff@elegant.com" },
     update: {},
     create: {
       email: "staff@elegant.com",
-      name: "Staff Member",
+      name: "Student Member",
       hashedPassword: staffPassword,
-      role: "STAFF",
+      role: "STUDENT",
+      status: "APPROVED",
       phone: "02-000-0002",
     },
   });
-  console.log(`✅ Staff created: ${staff.email}`);
+  console.log(`✅ Student created: ${staff.email}`);
 
   // Create Guest user
   const guestPassword = await hash("guest123", 12);
@@ -49,6 +51,7 @@ async function main() {
       name: "Guest User",
       hashedPassword: guestPassword,
       role: "GUEST",
+      status: "APPROVED",
       phone: "02-000-0003",
     },
   });
@@ -98,7 +101,7 @@ async function main() {
   console.log("\n🎉 Seeding completed!");
   console.log("\n📋 Test Accounts:");
   console.log("  Admin: admin@elegant.com / admin123");
-  console.log("  Staff: staff@elegant.com / staff123");
+  console.log("  Student: staff@elegant.com / staff123");
   console.log("  Guest: guest@example.com / guest123");
 }
 

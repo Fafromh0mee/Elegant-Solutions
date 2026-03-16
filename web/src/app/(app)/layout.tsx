@@ -1,10 +1,21 @@
 import { Navbar } from "@/components/navbar";
+import { auth } from "@/lib/auth";
+import { isAdminRole } from "@/lib/permissions";
+import { getMaintenanceMode } from "@/lib/system";
+import { redirect } from "next/navigation";
 
-export default function AppLayout({
+export default async function AppLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  const session = await auth();
+  const isMaintenanceMode = await getMaintenanceMode();
+
+  if (isMaintenanceMode && session && !isAdminRole(session.user.role)) {
+    redirect("/maintenance");
+  }
+
   return (
     <div className="min-h-screen bg-gray-50">
       <Navbar />

@@ -106,6 +106,17 @@
     color: var(--color-secondary);
   }
 
+  .badge-student {
+    @apply inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium;
+    background-color: #8F98CC1A;
+    color: var(--color-secondary);
+  }
+
+  .badge-super-admin {
+    @apply inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium
+           bg-amber-100 text-amber-800;
+  }
+
   .badge-guest {
     @apply inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium
            bg-green-100 text-green-800;

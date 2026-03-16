@@ -7,9 +7,16 @@ datasource db {
 }
 
 enum Role {
-  ADMIN
-  STAFF
   GUEST
+  STUDENT
+  ADMIN
+  SUPER_ADMIN
+}
+
+enum AccountStatus {
+  PENDING
+  APPROVED
+  REJECTED
 }
 
 enum SessionStatus {
@@ -27,17 +34,24 @@ enum LogAction {
   ROOM_CREATED
   ROOM_UPDATED
   USER_UPDATED
+  USER_APPROVED
+  USER_REJECTED
   FACE_ENROLLED
   FACE_VERIFIED
   FACE_DENIED
+  SCHEDULE_ACCESS
 }
 
 model User {
   id             String   @id @default(cuid())
   email          String   @unique
   name           String
-  hashedPassword String
+  hashedPassword String?
   role           Role     @default(GUEST)
+  status         AccountStatus @default(APPROVED)
+  studentId      String?  @unique
+  faculty        String?
+  major          String?
   phone          String?
   avatarUrl      String?
   createdAt      DateTime @default(now())
@@ -50,6 +64,7 @@ model User {
   ownedGroups    Group[]        @relation("GroupOwner")
   groupMembers   GroupMember[]
   faceProfile    FaceProfile?
+  classSchedules ClassSchedule[]
 
   @@map("users")
 }
@@ -70,6 +85,7 @@ model Room {
   accessTokens AccessToken[]
   sessions     Session[]
   logs         Log[]
+  classSchedules ClassSchedule[]
 
   @@map("rooms")
 }
@@ -153,6 +169,26 @@ model Log {
   @@map("logs")
 }
 
+model ClassSchedule {
+  id          String   @id @default(cuid())
+  userId      String
+  roomId      String
+  dayOfWeek   Int      // 0=Sunday … 6=Saturday
+  startTime   String   // "HH:MM" 24-hour
+  endTime     String   // "HH:MM" 24-hour
+  subjectName String?
+  subjectCode String?
+  semester    String?
+  createdAt   DateTime @default(now())
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  room Room @relation(fields: [roomId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, roomId, dayOfWeek, startTime, endTime, semester])
+  @@map("class_schedules")
+}
+
 model FaceProfile {
   id           String   @id @default(cuid())
   userId       String   @unique
@@ -166,4 +202,12 @@ model FaceProfile {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("face_profiles")
+}
+
+model SystemSetting {
+  key       String   @id
+  value     String
+  updatedAt DateTime @updatedAt
+
+  @@map("system_settings")
 }

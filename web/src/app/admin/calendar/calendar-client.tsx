@@ -13,7 +13,10 @@ import {
   X,
   Filter,
 } from "lucide-react";
-import { getCalendarDataAction, getAllRoomsForCalendarAction } from "@/actions/calendar";
+import {
+  getCalendarDataAction,
+  getAllRoomsForCalendarAction,
+} from "@/actions/calendar";
 import { cn } from "@/lib/utils";
 
 // ─── Types ─────────────────────────────────────────────
@@ -58,14 +61,54 @@ interface RoomInfo {
 
 // ─── Color Palette ─────────────────────────────────────
 const ROOM_COLORS = [
-  { bg: "bg-blue-100", border: "border-blue-300", text: "text-blue-800", dot: "bg-blue-500" },
-  { bg: "bg-emerald-100", border: "border-emerald-300", text: "text-emerald-800", dot: "bg-emerald-500" },
-  { bg: "bg-amber-100", border: "border-amber-300", text: "text-amber-800", dot: "bg-amber-500" },
-  { bg: "bg-purple-100", border: "border-purple-300", text: "text-purple-800", dot: "bg-purple-500" },
-  { bg: "bg-rose-100", border: "border-rose-300", text: "text-rose-800", dot: "bg-rose-500" },
-  { bg: "bg-cyan-100", border: "border-cyan-300", text: "text-cyan-800", dot: "bg-cyan-500" },
-  { bg: "bg-sky-100", border: "border-sky-300", text: "text-sky-800", dot: "bg-sky-500" },
-  { bg: "bg-indigo-100", border: "border-indigo-300", text: "text-indigo-800", dot: "bg-indigo-500" },
+  {
+    bg: "bg-blue-100",
+    border: "border-blue-300",
+    text: "text-blue-800",
+    dot: "bg-blue-500",
+  },
+  {
+    bg: "bg-emerald-100",
+    border: "border-emerald-300",
+    text: "text-emerald-800",
+    dot: "bg-emerald-500",
+  },
+  {
+    bg: "bg-amber-100",
+    border: "border-amber-300",
+    text: "text-amber-800",
+    dot: "bg-amber-500",
+  },
+  {
+    bg: "bg-purple-100",
+    border: "border-purple-300",
+    text: "text-purple-800",
+    dot: "bg-purple-500",
+  },
+  {
+    bg: "bg-rose-100",
+    border: "border-rose-300",
+    text: "text-rose-800",
+    dot: "bg-rose-500",
+  },
+  {
+    bg: "bg-cyan-100",
+    border: "border-cyan-300",
+    text: "text-cyan-800",
+    dot: "bg-cyan-500",
+  },
+  {
+    bg: "bg-sky-100",
+    border: "border-sky-300",
+    text: "text-sky-800",
+    dot: "bg-sky-500",
+  },
+  {
+    bg: "bg-indigo-100",
+    border: "border-indigo-300",
+    text: "text-indigo-800",
+    dot: "bg-indigo-500",
+  },
 ];
 
 // ─── Helpers ───────────────────────────────────────────
@@ -97,11 +140,18 @@ function getDayEnd(date: Date): Date {
 }
 
 function formatDate(date: Date): string {
-  return date.toLocaleDateString("th-TH", { day: "numeric", month: "short", year: "numeric" });
+  return date.toLocaleDateString("th-TH", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  });
 }
 
 function formatTime(iso: string): string {
-  return new Date(iso).toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" });
+  return new Date(iso).toLocaleTimeString("th-TH", {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
 }
 
 function formatShortDay(date: Date): string {
@@ -116,17 +166,21 @@ export function CalendarClient() {
   const [viewMode, setViewMode] = useState<"overview" | "room">("overview");
   const [timeRange, setTimeRange] = useState<"day" | "week">("week");
   const [selectedRoom, setSelectedRoom] = useState<string>("");
-  const [roleFilter, setRoleFilter] = useState<"ALL" | "STAFF" | "GUEST">("ALL");
+  const [roleFilter, setRoleFilter] = useState<"ALL" | "STUDENT" | "GUEST">(
+    "ALL",
+  );
   const [showFilter, setShowFilter] = useState(false);
 
   const [rooms, setRooms] = useState<RoomInfo[]>([]);
   const [events, setEvents] = useState<CalendarEvent[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(null);
+  const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(
+    null,
+  );
 
   // Room color map
   const roomColorMap = useMemo(() => {
-    const map: Record<string, typeof ROOM_COLORS[number]> = {};
+    const map: Record<string, (typeof ROOM_COLORS)[number]> = {};
     rooms.forEach((r, i) => {
       map[r.id] = ROOM_COLORS[i % ROOM_COLORS.length];
     });
@@ -221,7 +275,9 @@ export function CalendarClient() {
             <CalendarDays className="h-7 w-7 text-purple-600" />
             ตารางการจองห้อง
           </h1>
-          <p className="text-sm text-gray-500 mt-1">ภาพรวมการจองและการใช้ห้องทั้งหมด</p>
+          <p className="text-sm text-gray-500 mt-1">
+            ภาพรวมการจองและการใช้ห้องทั้งหมด
+          </p>
         </div>
 
         <div className="flex items-center gap-2">
@@ -230,7 +286,9 @@ export function CalendarClient() {
             onClick={() => setShowFilter(!showFilter)}
             className={cn(
               "flex items-center gap-1.5 px-3 py-2 rounded-lg border text-sm font-medium transition-colors",
-              showFilter ? "bg-purple-50 border-purple-200 text-purple-700" : "border-gray-200 text-gray-600 hover:bg-gray-50"
+              showFilter
+                ? "bg-purple-50 border-purple-200 text-purple-700"
+                : "border-gray-200 text-gray-600 hover:bg-gray-50",
             )}
           >
             <Filter className="h-4 w-4" />
@@ -244,13 +302,17 @@ export function CalendarClient() {
         <div className="bg-white border rounded-xl p-4 mb-4 flex flex-wrap items-center gap-4">
           {/* View Mode */}
           <div>
-            <label className="text-xs font-medium text-gray-500 mb-1 block">มุมมอง</label>
+            <label className="text-xs font-medium text-gray-500 mb-1 block">
+              มุมมอง
+            </label>
             <div className="flex rounded-lg border overflow-hidden">
               <button
                 onClick={() => setViewMode("overview")}
                 className={cn(
                   "flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium transition-colors",
-                  viewMode === "overview" ? "bg-purple-600 text-white" : "bg-white text-gray-600 hover:bg-gray-50"
+                  viewMode === "overview"
+                    ? "bg-purple-600 text-white"
+                    : "bg-white text-gray-600 hover:bg-gray-50",
                 )}
               >
                 <LayoutGrid className="h-3.5 w-3.5" />
@@ -259,28 +321,35 @@ export function CalendarClient() {
               <button
                 onClick={() => {
                   setViewMode("room");
-                  if (!selectedRoom && rooms.length > 0) setSelectedRoom(rooms[0].id);
+                  if (!selectedRoom && rooms.length > 0)
+                    setSelectedRoom(rooms[0].id);
                 }}
                 className={cn(
                   "flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium transition-colors border-l",
-                  viewMode === "room" ? "bg-purple-600 text-white" : "bg-white text-gray-600 hover:bg-gray-50"
+                  viewMode === "room"
+                    ? "bg-purple-600 text-white"
+                    : "bg-white text-gray-600 hover:bg-gray-50",
                 )}
               >
                 <DoorOpen className="h-3.5 w-3.5" />
-                เจาะห้อง
+                รายห้อง
               </button>
             </div>
           </div>
 
           {/* Time Range */}
           <div>
-            <label className="text-xs font-medium text-gray-500 mb-1 block">ช่วงเวลา</label>
+            <label className="text-xs font-medium text-gray-500 mb-1 block">
+              ช่วงเวลา
+            </label>
             <div className="flex rounded-lg border overflow-hidden">
               <button
                 onClick={() => setTimeRange("day")}
                 className={cn(
                   "px-3 py-1.5 text-sm font-medium transition-colors",
-                  timeRange === "day" ? "bg-purple-600 text-white" : "bg-white text-gray-600 hover:bg-gray-50"
+                  timeRange === "day"
+                    ? "bg-purple-600 text-white"
+                    : "bg-white text-gray-600 hover:bg-gray-50",
                 )}
               >
                 วัน
@@ -289,7 +358,9 @@ export function CalendarClient() {
                 onClick={() => setTimeRange("week")}
                 className={cn(
                   "px-3 py-1.5 text-sm font-medium transition-colors border-l",
-                  timeRange === "week" ? "bg-purple-600 text-white" : "bg-white text-gray-600 hover:bg-gray-50"
+                  timeRange === "week"
+                    ? "bg-purple-600 text-white"
+                    : "bg-white text-gray-600 hover:bg-gray-50",
                 )}
               >
                 สัปดาห์
@@ -300,7 +371,9 @@ export function CalendarClient() {
           {/* Room Selector (Single Room mode) */}
           {viewMode === "room" && (
             <div>
-              <label className="text-xs font-medium text-gray-500 mb-1 block">เลือกห้อง</label>
+              <label className="text-xs font-medium text-gray-500 mb-1 block">
+                เลือกห้อง
+              </label>
               <select
                 className="border rounded-lg px-3 py-1.5 text-sm bg-white min-w-40"
                 value={selectedRoom}
@@ -317,14 +390,18 @@ export function CalendarClient() {
 
           {/* Role Filter */}
           <div>
-            <label className="text-xs font-medium text-gray-500 mb-1 block">Role</label>
+            <label className="text-xs font-medium text-gray-500 mb-1 block">
+              Role
+            </label>
             <select
               className="border rounded-lg px-3 py-1.5 text-sm bg-white"
               value={roleFilter}
-              onChange={(e) => setRoleFilter(e.target.value as typeof roleFilter)}
+              onChange={(e) =>
+                setRoleFilter(e.target.value as typeof roleFilter)
+              }
             >
               <option value="ALL">ทั้งหมด</option>
-              <option value="STAFF">STAFF</option>
+              <option value="STUDENT">STUDENT</option>
               <option value="GUEST">GUEST</option>
             </select>
           </div>
@@ -334,7 +411,10 @@ export function CalendarClient() {
       {/* ─── Date Navigation ─── */}
       <div className="flex items-center justify-between bg-white border rounded-xl px-4 py-3 mb-4">
         <div className="flex items-center gap-2">
-          <button onClick={goPrev} className="p-1.5 rounded-lg hover:bg-gray-100 transition-colors">
+          <button
+            onClick={goPrev}
+            className="p-1.5 rounded-lg hover:bg-gray-100 transition-colors"
+          >
             <ChevronLeft className="h-5 w-5 text-gray-600" />
           </button>
           <button
@@ -343,14 +423,15 @@ export function CalendarClient() {
           >
             วันนี้
           </button>
-          <button onClick={goNext} className="p-1.5 rounded-lg hover:bg-gray-100 transition-colors">
+          <button
+            onClick={goNext}
+            className="p-1.5 rounded-lg hover:bg-gray-100 transition-colors"
+          >
             <ChevronRight className="h-5 w-5 text-gray-600" />
           </button>
         </div>
         <h2 className="text-lg font-semibold text-gray-800">{headerLabel}</h2>
-        <div className="text-sm text-gray-500">
-          {events.length} รายการ
-        </div>
+        <div className="text-sm text-gray-500">{events.length} รายการ</div>
       </div>
 
       {/* ─── Calendar Body ─── */}
@@ -379,7 +460,10 @@ export function CalendarClient() {
 
       {/* ─── Event Detail Modal ─── */}
       {selectedEvent && (
-        <EventDetailModal event={selectedEvent} onClose={() => setSelectedEvent(null)} />
+        <EventDetailModal
+          event={selectedEvent}
+          onClose={() => setSelectedEvent(null)}
+        />
       )}
     </div>
   );
@@ -400,7 +484,7 @@ function OverviewGrid({
   events: CalendarEvent[];
   weekDays: Date[];
   timeRange: "day" | "week";
-  roomColorMap: Record<string, typeof ROOM_COLORS[number]>;
+  roomColorMap: Record<string, (typeof ROOM_COLORS)[number]>;
   onEventClick: (e: CalendarEvent) => void;
 }) {
   if (rooms.length === 0) {
@@ -428,7 +512,10 @@ function OverviewGrid({
   return (
     <div className="bg-white border rounded-xl overflow-hidden">
       {/* Header */}
-      <div className="grid border-b" style={{ gridTemplateColumns: `140px repeat(${weekDays.length}, 1fr)` }}>
+      <div
+        className="grid border-b"
+        style={{ gridTemplateColumns: `140px repeat(${weekDays.length}, 1fr)` }}
+      >
         <div className="px-3 py-2.5 bg-gray-50 font-medium text-sm text-gray-600 border-r">
           ห้อง
         </div>
@@ -439,7 +526,9 @@ function OverviewGrid({
               key={i}
               className={cn(
                 "px-2 py-2.5 text-center text-sm font-medium border-r last:border-r-0",
-                isToday ? "bg-purple-50 text-purple-700" : "bg-gray-50 text-gray-600"
+                isToday
+                  ? "bg-purple-50 text-purple-700"
+                  : "bg-gray-50 text-gray-600",
               )}
             >
               {formatShortDay(day)}
@@ -455,13 +544,19 @@ function OverviewGrid({
           <div
             key={room.id}
             className="grid border-b last:border-b-0"
-            style={{ gridTemplateColumns: `140px repeat(${weekDays.length}, 1fr)` }}
+            style={{
+              gridTemplateColumns: `140px repeat(${weekDays.length}, 1fr)`,
+            }}
           >
             {/* Room label */}
             <div className="px-3 py-3 border-r flex items-center gap-2">
-              <div className={cn("w-2.5 h-2.5 rounded-full shrink-0", color.dot)} />
+              <div
+                className={cn("w-2.5 h-2.5 rounded-full shrink-0", color.dot)}
+              />
               <div className="min-w-0">
-                <p className="text-sm font-medium text-gray-900 truncate">{room.name}</p>
+                <p className="text-sm font-medium text-gray-900 truncate">
+                  {room.name}
+                </p>
                 <p className="text-xs text-gray-400">{room.roomCode}</p>
               </div>
             </div>
@@ -482,7 +577,8 @@ function OverviewGrid({
                   key={di}
                   className={cn(
                     "px-1.5 py-2 border-r last:border-r-0 min-h-15",
-                    day.toDateString() === new Date().toDateString() && "bg-purple-50/30"
+                    day.toDateString() === new Date().toDateString() &&
+                      "bg-purple-50/30",
                   )}
                 >
                   {dayEvents.length === 0 ? (
@@ -495,17 +591,22 @@ function OverviewGrid({
                           onClick={() => onEventClick(evt)}
                           className={cn(
                             "w-full text-left px-1.5 py-1 rounded text-xs truncate border transition-all hover:shadow-sm",
-                            color.bg, color.border, color.text
+                            color.bg,
+                            color.border,
+                            color.text,
                           )}
                           title={`${evt.userName} ${formatTime(evt.start)}`}
                         >
-                          <span className="font-medium">{formatTime(evt.start)}</span>
-                          {" "}
+                          <span className="font-medium">
+                            {formatTime(evt.start)}
+                          </span>{" "}
                           <span className="opacity-75">{evt.userName}</span>
                         </button>
                       ))}
                       {dayEvents.length > 3 && (
-                        <p className="text-xs text-gray-400 text-center">+{dayEvents.length - 3} อีก</p>
+                        <p className="text-xs text-gray-400 text-center">
+                          +{dayEvents.length - 3} อีก
+                        </p>
                       )}
                     </div>
                   )}
@@ -532,7 +633,7 @@ function DayOverview({
   rooms: RoomInfo[];
   events: CalendarEvent[];
   date: Date;
-  roomColorMap: Record<string, typeof ROOM_COLORS[number]>;
+  roomColorMap: Record<string, (typeof ROOM_COLORS)[number]>;
   onEventClick: (e: CalendarEvent) => void;
 }) {
   const dayStart = getDayStart(date);
@@ -542,12 +643,18 @@ function DayOverview({
     <div className="bg-white border rounded-xl overflow-x-auto">
       <div className="min-w-225">
         {/* Time header */}
-        <div className="grid border-b" style={{ gridTemplateColumns: `140px repeat(${HOURS.length}, 1fr)` }}>
+        <div
+          className="grid border-b"
+          style={{ gridTemplateColumns: `140px repeat(${HOURS.length}, 1fr)` }}
+        >
           <div className="px-3 py-2.5 bg-gray-50 font-medium text-sm text-gray-600 border-r sticky left-0 z-10">
             ห้อง
           </div>
           {HOURS.map((h) => (
-            <div key={h} className="px-1 py-2.5 text-center text-xs font-medium text-gray-500 bg-gray-50 border-r last:border-r-0">
+            <div
+              key={h}
+              className="px-1 py-2.5 text-center text-xs font-medium text-gray-500 bg-gray-50 border-r last:border-r-0"
+            >
               {String(h).padStart(2, "0")}:00
             </div>
           ))}
@@ -567,13 +674,19 @@ function DayOverview({
             <div
               key={room.id}
               className="grid border-b last:border-b-0"
-              style={{ gridTemplateColumns: `140px repeat(${HOURS.length}, 1fr)` }}
+              style={{
+                gridTemplateColumns: `140px repeat(${HOURS.length}, 1fr)`,
+              }}
             >
               {/* Room label */}
               <div className="px-3 py-3 border-r flex items-center gap-2 sticky left-0 bg-white z-10">
-                <div className={cn("w-2.5 h-2.5 rounded-full shrink-0", color.dot)} />
+                <div
+                  className={cn("w-2.5 h-2.5 rounded-full shrink-0", color.dot)}
+                />
                 <div className="min-w-0">
-                  <p className="text-sm font-medium text-gray-900 truncate">{room.name}</p>
+                  <p className="text-sm font-medium text-gray-900 truncate">
+                    {room.name}
+                  </p>
                   <p className="text-xs text-gray-400">{room.roomCode}</p>
                 </div>
               </div>
@@ -598,7 +711,7 @@ function DayOverview({
                     key={h}
                     className={cn(
                       "border-r last:border-r-0 min-h-12 relative",
-                      isNow && "bg-purple-50/50"
+                      isNow && "bg-purple-50/50",
                     )}
                   >
                     {isNow && (
@@ -610,8 +723,11 @@ function DayOverview({
                         onClick={() => onEventClick(evt)}
                         className={cn(
                           "w-full text-left px-1 py-0.5 text-xs truncate border-l-2 hover:opacity-80 transition-opacity",
-                          color.bg, color.text,
-                          evt.type === "session" ? "border-l-green-500" : `border-l-current`
+                          color.bg,
+                          color.text,
+                          evt.type === "session"
+                            ? "border-l-green-500"
+                            : `border-l-current`,
                         )}
                         title={evt.userName}
                       >
@@ -642,7 +758,7 @@ function SingleRoomCalendar({
   events: CalendarEvent[];
   weekDays: Date[];
   timeRange: "day" | "week";
-  roomColorMap: Record<string, typeof ROOM_COLORS[number]>;
+  roomColorMap: Record<string, (typeof ROOM_COLORS)[number]>;
   onEventClick: (e: CalendarEvent) => void;
 }) {
   if (events.length === 0 && weekDays.length > 0) {
@@ -667,16 +783,18 @@ function SingleRoomCalendar({
                 key={i}
                 className={cn(
                   "px-2 py-3 text-center border-r last:border-r-0",
-                  isToday ? "bg-purple-50" : "bg-gray-50"
+                  isToday ? "bg-purple-50" : "bg-gray-50",
                 )}
               >
                 <p className="text-xs text-gray-500">
                   {day.toLocaleDateString("th-TH", { weekday: "short" })}
                 </p>
-                <p className={cn(
-                  "text-lg font-semibold mt-0.5",
-                  isToday ? "text-purple-700" : "text-gray-800"
-                )}>
+                <p
+                  className={cn(
+                    "text-lg font-semibold mt-0.5",
+                    isToday ? "text-purple-700" : "text-gray-800",
+                  )}
+                >
                   {day.getDate()}
                 </p>
               </div>
@@ -716,7 +834,7 @@ function SingleRoomCalendar({
                   key={di}
                   className={cn(
                     "border-r last:border-r-0 min-h-12 p-0.5 relative",
-                    isNow && "bg-purple-50/40"
+                    isNow && "bg-purple-50/40",
                   )}
                 >
                   {isNow && (
@@ -730,13 +848,17 @@ function SingleRoomCalendar({
                         onClick={() => onEventClick(evt)}
                         className={cn(
                           "w-full text-left px-2 py-1 rounded text-xs border mb-0.5 transition-all hover:shadow-sm",
-                          color.bg, color.border, color.text
+                          color.bg,
+                          color.border,
+                          color.text,
                         )}
                       >
                         <p className="font-medium truncate">{evt.userName}</p>
                         <p className="opacity-70 truncate">
                           {formatTime(evt.start)}
-                          {evt.end ? ` – ${formatTime(evt.end)}` : " (ใช้งานอยู่)"}
+                          {evt.end
+                            ? ` – ${formatTime(evt.end)}`
+                            : " (ใช้งานอยู่)"}
                         </p>
                       </button>
                     );
@@ -766,21 +888,29 @@ function EventDetailModal({
   const session = !isBooking ? (event as Session) : null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+      onClick={onClose}
+    >
       <div
         className="bg-white rounded-2xl shadow-xl max-w-md w-full p-6 relative animate-in fade-in zoom-in-95 duration-200"
         onClick={(e) => e.stopPropagation()}
       >
-        <button onClick={onClose} className="absolute top-4 right-4 text-gray-400 hover:text-gray-600">
+        <button
+          onClick={onClose}
+          className="absolute top-4 right-4 text-gray-400 hover:text-gray-600"
+        >
           <X className="h-5 w-5" />
         </button>
 
         {/* Header */}
         <div className="flex items-center gap-3 mb-4">
-          <div className={cn(
-            "p-2.5 rounded-xl",
-            isBooking ? "bg-blue-50" : "bg-green-50"
-          )}>
+          <div
+            className={cn(
+              "p-2.5 rounded-xl",
+              isBooking ? "bg-blue-50" : "bg-green-50",
+            )}
+          >
             {isBooking ? (
               <CalendarDays className={cn("h-6 w-6", "text-blue-600")} />
             ) : (
@@ -797,8 +927,16 @@ function EventDetailModal({
 
         {/* Details */}
         <div className="space-y-3 mb-4">
-          <DetailRow icon={<User className="h-4 w-4" />} label="ผู้ใช้" value={`${event.userName} (${event.userEmail})`} />
-          <DetailRow icon={<DoorOpen className="h-4 w-4" />} label="ห้อง" value={`${event.roomName} (${event.roomCode})`} />
+          <DetailRow
+            icon={<User className="h-4 w-4" />}
+            label="ผู้ใช้"
+            value={`${event.userName} (${event.userEmail})`}
+          />
+          <DetailRow
+            icon={<DoorOpen className="h-4 w-4" />}
+            label="ห้อง"
+            value={`${event.roomName} (${event.roomCode})`}
+          />
           <DetailRow
             icon={<Clock className="h-4 w-4" />}
             label="เวลาเริ่ม"
@@ -807,19 +945,29 @@ function EventDetailModal({
           <DetailRow
             icon={<Clock className="h-4 w-4" />}
             label="เวลาสิ้นสุด"
-            value={event.end ? new Date(event.end).toLocaleString("th-TH") : "กำลังใช้งาน"}
+            value={
+              event.end
+                ? new Date(event.end).toLocaleString("th-TH")
+                : "กำลังใช้งาน"
+            }
           />
 
           {/* Role Badge */}
           <div className="flex items-center gap-2">
             <Users className="h-4 w-4 text-gray-400" />
             <span className="text-sm text-gray-500">Role:</span>
-            <span className={cn(
-              "px-2 py-0.5 rounded-full text-xs font-medium",
-              event.userRole === "STAFF" ? "bg-blue-100 text-blue-700" :
-              event.userRole === "ADMIN" ? "bg-purple-100 text-purple-700" :
-              "bg-gray-100 text-gray-700"
-            )}>
+            <span
+              className={cn(
+                "px-2 py-0.5 rounded-full text-xs font-medium",
+                event.userRole === "STUDENT"
+                  ? "bg-blue-100 text-blue-700"
+                  : event.userRole === "SUPER_ADMIN"
+                    ? "bg-amber-100 text-amber-700"
+                    : event.userRole === "ADMIN"
+                      ? "bg-purple-100 text-purple-700"
+                      : "bg-gray-100 text-gray-700",
+              )}
+            >
               {event.userRole}
             </span>
           </div>
@@ -828,15 +976,23 @@ function EventDetailModal({
           {booking && (
             <>
               {booking.groupName && (
-                <DetailRow icon={<Users className="h-4 w-4" />} label="กลุ่ม" value={booking.groupName} />
+                <DetailRow
+                  icon={<Users className="h-4 w-4" />}
+                  label="กลุ่ม"
+                  value={booking.groupName}
+                />
               )}
               <div className="flex items-center gap-2">
                 <div className="h-4 w-4" />
                 <span className="text-sm text-gray-500">สถานะ:</span>
-                <span className={cn(
-                  "px-2 py-0.5 rounded-full text-xs font-medium",
-                  booking.isUsed ? "bg-green-100 text-green-700" : "bg-yellow-100 text-yellow-700"
-                )}>
+                <span
+                  className={cn(
+                    "px-2 py-0.5 rounded-full text-xs font-medium",
+                    booking.isUsed
+                      ? "bg-green-100 text-green-700"
+                      : "bg-yellow-100 text-yellow-700",
+                  )}
+                >
                   {booking.isUsed ? "ใช้แล้ว" : "ยังไม่ใช้"}
                 </span>
               </div>
@@ -848,10 +1004,14 @@ function EventDetailModal({
             <div className="flex items-center gap-2">
               <div className="h-4 w-4" />
               <span className="text-sm text-gray-500">สถานะ:</span>
-              <span className={cn(
-                "px-2 py-0.5 rounded-full text-xs font-medium",
-                session.status === "ACTIVE" ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-600"
-              )}>
+              <span
+                className={cn(
+                  "px-2 py-0.5 rounded-full text-xs font-medium",
+                  session.status === "ACTIVE"
+                    ? "bg-green-100 text-green-700"
+                    : "bg-gray-100 text-gray-600",
+                )}
+              >
                 {session.status === "ACTIVE" ? "กำลังใช้งาน" : "เสร็จสิ้น"}
               </span>
             </div>
@@ -866,7 +1026,15 @@ function EventDetailModal({
   );
 }
 
-function DetailRow({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) {
+function DetailRow({
+  icon,
+  label,
+  value,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  value: string;
+}) {
   return (
     <div className="flex items-start gap-2">
       <span className="text-gray-400 mt-0.5">{icon}</span>

@@ -20,8 +20,16 @@ import {
   Trash2,
 } from "lucide-react";
 import { getAvailableRoomsAction } from "@/actions/rooms";
-import { generateAccessTokenAction, getMyTokensAction } from "@/actions/access-tokens";
-import { createGroupAction, joinGroupAction, getMyGroupsAction, generateGroupTokenAction } from "@/actions/groups";
+import {
+  generateAccessTokenAction,
+  getMyTokensAction,
+} from "@/actions/access-tokens";
+import {
+  createGroupAction,
+  joinGroupAction,
+  getMyGroupsAction,
+  generateGroupTokenAction,
+} from "@/actions/groups";
 import { getFaceStatusAction, deleteFaceProfileAction } from "@/actions/face";
 import type { AuthUser } from "@/lib/types";
 import QRCode from "qrcode";
@@ -36,23 +44,29 @@ interface Room {
 }
 
 export function DashboardClient({ user }: { user: AuthUser }) {
+  const minDateTime = new Date(Date.now() + 60_000).toISOString().slice(0, 16);
+
   const [rooms, setRooms] = useState<Room[]>([]);
-  const [tokens, setTokens] = useState<Array<{
-    id: string;
-    token: string;
-    validFrom: Date;
-    validTo: Date;
-    room: { name: string; roomCode: string };
-    group: { name: string } | null;
-  }>>([]);
-  const [groups, setGroups] = useState<Array<{
-    id: string;
-    name: string;
-    code: string;
-    owner: { id: string; name: string };
-    members: Array<{ user: { id: string; name: string; email: string } }>;
-    _count: { members: number };
-  }>>([]);
+  const [tokens, setTokens] = useState<
+    Array<{
+      id: string;
+      token: string;
+      validFrom: Date;
+      validTo: Date;
+      room: { name: string; roomCode: string };
+      group: { name: string } | null;
+    }>
+  >([]);
+  const [groups, setGroups] = useState<
+    Array<{
+      id: string;
+      name: string;
+      code: string;
+      owner: { id: string; name: string };
+      members: Array<{ user: { id: string; name: string; email: string } }>;
+      _count: { members: number };
+    }>
+  >([]);
 
   // Modal states
   const [showGenerateQR, setShowGenerateQR] = useState(false);
@@ -109,7 +123,10 @@ export function DashboardClient({ user }: { user: AuthUser }) {
   }
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(() => { loadData(); loadFaceStatus(); }, []);
+  useEffect(() => {
+    loadData();
+    loadFaceStatus();
+  }, []);
 
   async function loadFaceStatus() {
     if (user.role === "GUEST") return;
@@ -123,7 +140,11 @@ export function DashboardClient({ user }: { user: AuthUser }) {
   async function startFaceCamera() {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: "user", width: { ideal: 640 }, height: { ideal: 480 } },
+        video: {
+          facingMode: "user",
+          width: { ideal: 640 },
+          height: { ideal: 480 },
+        },
       });
       setFaceStream(stream);
       if (faceVideoRef.current) {
@@ -198,6 +219,26 @@ export function DashboardClient({ user }: { user: AuthUser }) {
 
   async function handleGenerateQR(e: React.FormEvent) {
     e.preventDefault();
+
+    const start = new Date(validFrom);
+    const end = new Date(validTo);
+    const now = new Date();
+
+    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
+      setError("รูปแบบวันเวลาไม่ถูกต้อง");
+      return;
+    }
+
+    if (start <= now) {
+      setError("เวลาเริ่มต้นต้องเป็นเวลาในอนาคต");
+      return;
+    }
+
+    if (end <= start) {
+      setError("เวลาสิ้นสุดต้องมากกว่าเวลาเริ่มต้น");
+      return;
+    }
+
     setLoading(true);
     setError("");
 
@@ -211,7 +252,10 @@ export function DashboardClient({ user }: { user: AuthUser }) {
       setError(result.error);
     } else if (result.token) {
       setGeneratedToken(result.token);
-      const url = await QRCode.toDataURL(result.token, { width: 300, margin: 2 });
+      const url = await QRCode.toDataURL(result.token, {
+        width: 300,
+        margin: 2,
+      });
       setQrDataUrl(url);
       setSuccess("สร้าง QR Code สำเร็จ!");
       loadData();
@@ -256,6 +300,26 @@ export function DashboardClient({ user }: { user: AuthUser }) {
 
   async function handleGenerateGroupQR(e: React.FormEvent) {
     e.preventDefault();
+
+    const start = new Date(validFrom);
+    const end = new Date(validTo);
+    const now = new Date();
+
+    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
+      setError("รูปแบบวันเวลาไม่ถูกต้อง");
+      return;
+    }
+
+    if (start <= now) {
+      setError("เวลาเริ่มต้นต้องเป็นเวลาในอนาคต");
+      return;
+    }
+
+    if (end <= start) {
+      setError("เวลาสิ้นสุดต้องมากกว่าเวลาเริ่มต้น");
+      return;
+    }
+
     setLoading(true);
     setError("");
 
@@ -270,7 +334,10 @@ export function DashboardClient({ user }: { user: AuthUser }) {
       setError(result.error);
     } else if (result.token) {
       setGeneratedToken(result.token);
-      const url = await QRCode.toDataURL(result.token, { width: 300, margin: 2 });
+      const url = await QRCode.toDataURL(result.token, {
+        width: 300,
+        margin: 2,
+      });
       setQrDataUrl(url);
       setSuccess("สร้าง Group QR Code สำเร็จ!");
       loadData();
@@ -284,11 +351,17 @@ export function DashboardClient({ user }: { user: AuthUser }) {
     setTimeout(() => setCopied(false), 2000);
   }
 
-  const handleViewToken = useCallback(async (token: typeof tokens[number]) => {
-    const url = await QRCode.toDataURL(token.token, { width: 300, margin: 2 });
-    setViewQrDataUrl(url);
-    setViewingToken(token);
-  }, []);
+  const handleViewToken = useCallback(
+    async (token: (typeof tokens)[number]) => {
+      const url = await QRCode.toDataURL(token.token, {
+        width: 300,
+        margin: 2,
+      });
+      setViewQrDataUrl(url);
+      setViewingToken(token);
+    },
+    [],
+  );
 
   function closeViewToken() {
     setViewingToken(null);
@@ -306,7 +379,7 @@ export function DashboardClient({ user }: { user: AuthUser }) {
           บทบาท:{" "}
           <span
             className={
-              user.role === "STAFF" ? "badge-staff" : "badge-guest"
+              user.role === "STUDENT" ? "badge-student" : "badge-guest"
             }
           >
             {user.role}
@@ -318,23 +391,37 @@ export function DashboardClient({ user }: { user: AuthUser }) {
       {error && (
         <div className="mb-4 rounded-lg bg-red-50 border border-red-200 p-3 text-sm text-red-700">
           {error}
-          <button onClick={() => setError("")} className="float-right font-bold">×</button>
+          <button
+            onClick={() => setError("")}
+            className="float-right font-bold"
+          >
+            ×
+          </button>
         </div>
       )}
       {success && (
         <div className="mb-4 rounded-lg bg-green-50 border border-green-200 p-3 text-sm text-green-700">
           {success}
-          <button onClick={() => setSuccess("")} className="float-right font-bold">×</button>
+          <button
+            onClick={() => setSuccess("")}
+            className="float-right font-bold"
+          >
+            ×
+          </button>
         </div>
       )}
 
-      {/* Face Enrollment Section — STAFF only */}
+      {/* Face Enrollment Section — STUDENT+ only */}
       {user.role !== "GUEST" && (
         <div className="card mb-8">
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-3">
-              <div className={`p-2.5 rounded-xl ${faceEnrolled ? "bg-green-50" : "bg-(--color-primary-light)"}`}>
-                <ScanFace className={`h-6 w-6 ${faceEnrolled ? "text-green-600" : "text-(--color-primary)"}`} />
+              <div
+                className={`p-2.5 rounded-xl ${faceEnrolled ? "bg-green-50" : "bg-(--color-primary-light)"}`}
+              >
+                <ScanFace
+                  className={`h-6 w-6 ${faceEnrolled ? "text-green-600" : "text-(--color-primary)"}`}
+                />
               </div>
               <div>
                 <h2 className="font-semibold">ระบบสแกนใบหน้า</h2>
@@ -362,7 +449,10 @@ export function DashboardClient({ user }: { user: AuthUser }) {
                     <RefreshCw className="h-3 w-3" />
                     ลงทะเบียนใหม่
                   </button>
-                  <button onClick={handleDeleteFace} className="text-red-400 hover:text-red-600 p-1.5">
+                  <button
+                    onClick={handleDeleteFace}
+                    className="text-red-400 hover:text-red-600 p-1.5"
+                  >
                     <Trash2 className="h-4 w-4" />
                   </button>
                 </>
@@ -427,15 +517,22 @@ export function DashboardClient({ user }: { user: AuthUser }) {
 
                 {/* Captured images preview */}
                 <div>
-                  <p className="text-sm font-medium mb-2">รูปที่ถ่ายไว้ ({capturedImages.length}/3)</p>
-                  <p className="text-xs text-gray-500 mb-3">ถ่าย 2–3 รูป จากมุมต่างกันเล็กน้อยเพื่อความแม่นยำ</p>
+                  <p className="text-sm font-medium mb-2">
+                    รูปที่ถ่ายไว้ ({capturedImages.length}/3)
+                  </p>
+                  <p className="text-xs text-gray-500 mb-3">
+                    ถ่าย 2–3 รูป จากมุมต่างกันเล็กน้อยเพื่อความแม่นยำ
+                  </p>
                   <div className="grid grid-cols-3 gap-2 mb-4">
                     {[0, 1, 2].map((i) => (
-                      <div key={i} className="aspect-square bg-gray-100 rounded-lg overflow-hidden border-2 border-dashed border-gray-200 flex items-center justify-center">
+                      <div
+                        key={i}
+                        className="aspect-square bg-gray-100 rounded-lg overflow-hidden border-2 border-dashed border-gray-200 flex items-center justify-center"
+                      >
                         {capturedImages[i] ? (
                           // eslint-disable-next-line @next/next/no-img-element
                           <img
-                            src={capturedImages[i]}           // Base64 data URL
+                            src={capturedImages[i]} // Base64 data URL
                             alt={`Capture ${i + 1}`}
                             className="w-full h-full object-cover"
                             style={{ transform: "scaleX(-1)" }} // Mirror image (เพราะกล้องหน้า)
@@ -484,7 +581,9 @@ export function DashboardClient({ user }: { user: AuthUser }) {
         >
           <QrCode className="h-8 w-8 text-(--color-secondary) mb-3" />
           <h3 className="font-semibold">ขอเข้าใช้ห้อง</h3>
-          <p className="text-sm text-gray-500 mt-1">สร้าง QR Code สำหรับเข้าห้อง</p>
+          <p className="text-sm text-gray-500 mt-1">
+            สร้าง QR Code สำหรับเข้าห้อง
+          </p>
         </button>
 
         <button
@@ -493,7 +592,9 @@ export function DashboardClient({ user }: { user: AuthUser }) {
         >
           <Users className="h-8 w-8 text-green-600 mb-3" />
           <h3 className="font-semibold">สร้างกลุ่ม</h3>
-          <p className="text-sm text-gray-500 mt-1">สร้างกลุ่มสำหรับเข้าห้องพร้อมกัน</p>
+          <p className="text-sm text-gray-500 mt-1">
+            สร้างกลุ่มสำหรับเข้าห้องพร้อมกัน
+          </p>
         </button>
 
         <button
@@ -502,7 +603,9 @@ export function DashboardClient({ user }: { user: AuthUser }) {
         >
           <Plus className="h-8 w-8 text-purple-600 mb-3" />
           <h3 className="font-semibold">เข้าร่วมกลุ่ม</h3>
-          <p className="text-sm text-gray-500 mt-1">ใช้ code เพื่อเข้าร่วมกลุ่ม</p>
+          <p className="text-sm text-gray-500 mt-1">
+            ใช้ code เพื่อเข้าร่วมกลุ่ม
+          </p>
         </button>
       </div>
 
@@ -514,19 +617,45 @@ export function DashboardClient({ user }: { user: AuthUser }) {
               <QrCode className="inline h-5 w-5 mr-2" />
               ขอเข้าใช้ห้อง (Individual QR)
             </h2>
-            <button onClick={() => setShowGenerateQR(false)} className="text-gray-400 hover:text-gray-600 text-xl">×</button>
+            <button
+              onClick={() => setShowGenerateQR(false)}
+              className="text-gray-400 hover:text-gray-600 text-xl"
+            >
+              ×
+            </button>
           </div>
 
           {qrDataUrl ? (
             <div className="text-center">
-              <Image src={qrDataUrl} alt="QR Code" width={300} height={300} className="mx-auto mb-4" />
+              <Image
+                src={qrDataUrl}
+                alt="QR Code"
+                width={300}
+                height={300}
+                className="mx-auto mb-4"
+              />
               <div className="flex items-center justify-center gap-2 mb-4">
-                <code className="text-xs bg-gray-100 px-3 py-1 rounded">{generatedToken}</code>
-                <button onClick={() => copyToClipboard(generatedToken)} className="btn-secondary text-xs py-1 px-2">
-                  {copied ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
+                <code className="text-xs bg-gray-100 px-3 py-1 rounded">
+                  {generatedToken}
+                </code>
+                <button
+                  onClick={() => copyToClipboard(generatedToken)}
+                  className="btn-secondary text-xs py-1 px-2"
+                >
+                  {copied ? (
+                    <Check className="h-3 w-3" />
+                  ) : (
+                    <Copy className="h-3 w-3" />
+                  )}
                 </button>
               </div>
-              <button onClick={() => { setQrDataUrl(""); setGeneratedToken(""); }} className="btn-secondary">
+              <button
+                onClick={() => {
+                  setQrDataUrl("");
+                  setGeneratedToken("");
+                }}
+                className="btn-secondary"
+              >
                 สร้างอีกครั้ง
               </button>
             </div>
@@ -534,24 +663,49 @@ export function DashboardClient({ user }: { user: AuthUser }) {
             <form onSubmit={handleGenerateQR} className="space-y-4">
               <div>
                 <label className="label">เลือกห้อง</label>
-                <select className="input" value={selectedRoom} onChange={(e) => setSelectedRoom(e.target.value)} required>
+                <select
+                  className="input"
+                  value={selectedRoom}
+                  onChange={(e) => setSelectedRoom(e.target.value)}
+                  required
+                >
                   <option value="">-- เลือกห้อง --</option>
                   {rooms.map((room) => (
-                    <option key={room.id} value={room.id}>{room.name} ({room.roomCode})</option>
+                    <option key={room.id} value={room.id}>
+                      {room.name} ({room.roomCode})
+                    </option>
                   ))}
                 </select>
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="label">เริ่มต้น</label>
-                  <input type="datetime-local" className="input" value={validFrom} onChange={(e) => setValidFrom(e.target.value)} required />
+                  <input
+                    type="datetime-local"
+                    className="input"
+                    value={validFrom}
+                    onChange={(e) => setValidFrom(e.target.value)}
+                    min={minDateTime}
+                    required
+                  />
                 </div>
                 <div>
                   <label className="label">สิ้นสุด</label>
-                  <input type="datetime-local" className="input" value={validTo} onChange={(e) => setValidTo(e.target.value)} required />
+                  <input
+                    type="datetime-local"
+                    className="input"
+                    value={validTo}
+                    onChange={(e) => setValidTo(e.target.value)}
+                    min={validFrom || minDateTime}
+                    required
+                  />
                 </div>
               </div>
-              <button type="submit" className="btn-primary w-full" disabled={loading}>
+              <button
+                type="submit"
+                className="btn-primary w-full"
+                disabled={loading}
+              >
                 {loading ? "กำลังสร้าง..." : "สร้าง QR Code"}
               </button>
             </form>
@@ -564,14 +718,30 @@ export function DashboardClient({ user }: { user: AuthUser }) {
         <div className="card mb-8">
           <div className="flex justify-between items-center mb-4">
             <h2 className="text-lg font-semibold">สร้างกลุ่ม</h2>
-            <button onClick={() => setShowCreateGroup(false)} className="text-gray-400 hover:text-gray-600 text-xl">×</button>
+            <button
+              onClick={() => setShowCreateGroup(false)}
+              className="text-gray-400 hover:text-gray-600 text-xl"
+            >
+              ×
+            </button>
           </div>
           <form onSubmit={handleCreateGroup} className="space-y-4">
             <div>
               <label className="label">ชื่อกลุ่ม</label>
-              <input type="text" className="input" value={groupName} onChange={(e) => setGroupName(e.target.value)} placeholder="ชื่อกลุ่มของคุณ" required />
+              <input
+                type="text"
+                className="input"
+                value={groupName}
+                onChange={(e) => setGroupName(e.target.value)}
+                placeholder="ชื่อกลุ่มของคุณ"
+                required
+              />
             </div>
-            <button type="submit" className="btn-primary w-full" disabled={loading}>
+            <button
+              type="submit"
+              className="btn-primary w-full"
+              disabled={loading}
+            >
               {loading ? "กำลังสร้าง..." : "สร้างกลุ่ม"}
             </button>
           </form>
@@ -583,14 +753,30 @@ export function DashboardClient({ user }: { user: AuthUser }) {
         <div className="card mb-8">
           <div className="flex justify-between items-center mb-4">
             <h2 className="text-lg font-semibold">เข้าร่วมกลุ่ม</h2>
-            <button onClick={() => setShowJoinGroup(false)} className="text-gray-400 hover:text-gray-600 text-xl">×</button>
+            <button
+              onClick={() => setShowJoinGroup(false)}
+              className="text-gray-400 hover:text-gray-600 text-xl"
+            >
+              ×
+            </button>
           </div>
           <form onSubmit={handleJoinGroup} className="space-y-4">
             <div>
               <label className="label">Group Code</label>
-              <input type="text" className="input" value={groupCode} onChange={(e) => setGroupCode(e.target.value)} placeholder="กรอก code ของกลุ่ม" required />
+              <input
+                type="text"
+                className="input"
+                value={groupCode}
+                onChange={(e) => setGroupCode(e.target.value)}
+                placeholder="กรอก code ของกลุ่ม"
+                required
+              />
             </div>
-            <button type="submit" className="btn-primary w-full" disabled={loading}>
+            <button
+              type="submit"
+              className="btn-primary w-full"
+              disabled={loading}
+            >
               {loading ? "กำลังเข้าร่วม..." : "เข้าร่วมกลุ่ม"}
             </button>
           </form>
@@ -613,8 +799,13 @@ export function DashboardClient({ user }: { user: AuthUser }) {
                     </p>
                   </div>
                   <div className="flex items-center gap-2">
-                    <code className="text-xs bg-gray-100 px-2 py-1 rounded">{group.code}</code>
-                    <button onClick={() => copyToClipboard(group.code)} className="text-gray-400 hover:text-gray-600">
+                    <code className="text-xs bg-gray-100 px-2 py-1 rounded">
+                      {group.code}
+                    </code>
+                    <button
+                      onClick={() => copyToClipboard(group.code)}
+                      className="text-gray-400 hover:text-gray-600"
+                    >
                       <Copy className="h-3 w-3" />
                     </button>
                   </div>
@@ -648,16 +839,36 @@ export function DashboardClient({ user }: { user: AuthUser }) {
               <QrCode className="inline h-5 w-5 mr-2" />
               สร้าง Group QR
             </h2>
-            <button onClick={() => setShowGroupQR(false)} className="text-gray-400 hover:text-gray-600 text-xl">×</button>
+            <button
+              onClick={() => setShowGroupQR(false)}
+              className="text-gray-400 hover:text-gray-600 text-xl"
+            >
+              ×
+            </button>
           </div>
 
           {qrDataUrl ? (
             <div className="text-center">
-              <Image src={qrDataUrl} alt="Group QR Code" width={300} height={300} className="mx-auto mb-4" />
+              <Image
+                src={qrDataUrl}
+                alt="Group QR Code"
+                width={300}
+                height={300}
+                className="mx-auto mb-4"
+              />
               <div className="flex items-center justify-center gap-2 mb-4">
-                <code className="text-xs bg-gray-100 px-3 py-1 rounded">{generatedToken}</code>
-                <button onClick={() => copyToClipboard(generatedToken)} className="btn-secondary text-xs py-1 px-2">
-                  {copied ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
+                <code className="text-xs bg-gray-100 px-3 py-1 rounded">
+                  {generatedToken}
+                </code>
+                <button
+                  onClick={() => copyToClipboard(generatedToken)}
+                  className="btn-secondary text-xs py-1 px-2"
+                >
+                  {copied ? (
+                    <Check className="h-3 w-3" />
+                  ) : (
+                    <Copy className="h-3 w-3" />
+                  )}
                 </button>
               </div>
             </div>
@@ -665,24 +876,49 @@ export function DashboardClient({ user }: { user: AuthUser }) {
             <form onSubmit={handleGenerateGroupQR} className="space-y-4">
               <div>
                 <label className="label">เลือกห้อง</label>
-                <select className="input" value={selectedRoom} onChange={(e) => setSelectedRoom(e.target.value)} required>
+                <select
+                  className="input"
+                  value={selectedRoom}
+                  onChange={(e) => setSelectedRoom(e.target.value)}
+                  required
+                >
                   <option value="">-- เลือกห้อง --</option>
                   {rooms.map((room) => (
-                    <option key={room.id} value={room.id}>{room.name} ({room.roomCode})</option>
+                    <option key={room.id} value={room.id}>
+                      {room.name} ({room.roomCode})
+                    </option>
                   ))}
                 </select>
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="label">เริ่มต้น</label>
-                  <input type="datetime-local" className="input" value={validFrom} onChange={(e) => setValidFrom(e.target.value)} required />
+                  <input
+                    type="datetime-local"
+                    className="input"
+                    value={validFrom}
+                    onChange={(e) => setValidFrom(e.target.value)}
+                    min={minDateTime}
+                    required
+                  />
                 </div>
                 <div>
                   <label className="label">สิ้นสุด</label>
-                  <input type="datetime-local" className="input" value={validTo} onChange={(e) => setValidTo(e.target.value)} required />
+                  <input
+                    type="datetime-local"
+                    className="input"
+                    value={validTo}
+                    onChange={(e) => setValidTo(e.target.value)}
+                    min={validFrom || minDateTime}
+                    required
+                  />
                 </div>
               </div>
-              <button type="submit" className="btn-primary w-full" disabled={loading}>
+              <button
+                type="submit"
+                className="btn-primary w-full"
+                disabled={loading}
+              >
                 {loading ? "กำลังสร้าง..." : "สร้าง Group QR Code"}
               </button>
             </form>
@@ -692,16 +928,28 @@ export function DashboardClient({ user }: { user: AuthUser }) {
 
       {/* View Token QR Modal */}
       {viewingToken && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={closeViewToken}>
-          <div className="bg-white rounded-2xl shadow-xl max-w-sm w-full p-6 relative" onClick={(e) => e.stopPropagation()}>
-            <button onClick={closeViewToken} className="absolute top-4 right-4 text-gray-400 hover:text-gray-600">
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+          onClick={closeViewToken}
+        >
+          <div
+            className="bg-white rounded-2xl shadow-xl max-w-sm w-full p-6 relative"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              onClick={closeViewToken}
+              className="absolute top-4 right-4 text-gray-400 hover:text-gray-600"
+            >
               <X className="h-5 w-5" />
             </button>
 
             <div className="text-center">
-              <h3 className="text-lg font-semibold mb-1">{viewingToken.room.name}</h3>
+              <h3 className="text-lg font-semibold mb-1">
+                {viewingToken.room.name}
+              </h3>
               <p className="text-xs text-gray-500 mb-4">
-                {new Date(viewingToken.validFrom).toLocaleString("th-TH")} – {new Date(viewingToken.validTo).toLocaleString("th-TH")}
+                {new Date(viewingToken.validFrom).toLocaleString("th-TH")} –{" "}
+                {new Date(viewingToken.validTo).toLocaleString("th-TH")}
               </p>
               {viewingToken.group && (
                 <span className="text-xs bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full mb-4 inline-block">
@@ -710,13 +958,28 @@ export function DashboardClient({ user }: { user: AuthUser }) {
               )}
 
               {viewQrDataUrl && (
-                <Image src={viewQrDataUrl} alt="QR Code" width={300} height={300} className="mx-auto mb-4" />
+                <Image
+                  src={viewQrDataUrl}
+                  alt="QR Code"
+                  width={300}
+                  height={300}
+                  className="mx-auto mb-4"
+                />
               )}
 
               <div className="flex items-center justify-center gap-2 mb-4">
-                <code className="text-xs bg-gray-100 px-3 py-1.5 rounded break-all">{viewingToken.token}</code>
-                <button onClick={() => copyToClipboard(viewingToken.token)} className="btn-secondary text-xs py-1 px-2 shrink-0">
-                  {copied ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
+                <code className="text-xs bg-gray-100 px-3 py-1.5 rounded break-all">
+                  {viewingToken.token}
+                </code>
+                <button
+                  onClick={() => copyToClipboard(viewingToken.token)}
+                  className="btn-secondary text-xs py-1 px-2 shrink-0"
+                >
+                  {copied ? (
+                    <Check className="h-3 w-3" />
+                  ) : (
+                    <Copy className="h-3 w-3" />
+                  )}
                 </button>
               </div>
 
@@ -725,7 +988,8 @@ export function DashboardClient({ user }: { user: AuthUser }) {
                   <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75" />
                   <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500" />
                 </span>
-                ใช้งานได้ – หมดอายุ {new Date(viewingToken.validTo).toLocaleString("th-TH")}
+                ใช้งานได้ – หมดอายุ{" "}
+                {new Date(viewingToken.validTo).toLocaleString("th-TH")}
               </div>
             </div>
           </div>
@@ -746,7 +1010,8 @@ export function DashboardClient({ user }: { user: AuthUser }) {
         ) : (
           <div className="space-y-3">
             {/* Active Tokens */}
-            {tokens.filter(t => new Date(t.validTo) > new Date()).length > 0 && (
+            {tokens.filter((t) => new Date(t.validTo) > new Date()).length >
+              0 && (
               <div className="mb-2">
                 <p className="text-sm font-medium text-green-700 mb-2 flex items-center gap-1.5">
                   <span className="relative flex h-2 w-2">
@@ -756,68 +1021,92 @@ export function DashboardClient({ user }: { user: AuthUser }) {
                   ใช้งานได้
                 </p>
                 <div className="space-y-2">
-                  {tokens.filter(t => new Date(t.validTo) > new Date()).map((token) => (
-                    <button
-                      key={token.id}
-                      onClick={() => handleViewToken(token)}
-                      className="card py-4 w-full text-left hover:shadow-md hover:border-(--color-secondary)/30 transition-all cursor-pointer group"
-                    >
-                      <div className="flex justify-between items-center">
-                        <div className="flex items-center gap-3">
-                          <div className="p-2 rounded-lg bg-green-50 text-green-600 group-hover:bg-green-100 transition-colors">
-                            <QrCode className="h-5 w-5" />
+                  {tokens
+                    .filter((t) => new Date(t.validTo) > new Date())
+                    .map((token) => (
+                      <button
+                        key={token.id}
+                        onClick={() => handleViewToken(token)}
+                        className="card py-4 w-full text-left hover:shadow-md hover:border-(--color-secondary)/30 transition-all cursor-pointer group"
+                      >
+                        <div className="flex justify-between items-center">
+                          <div className="flex items-center gap-3">
+                            <div className="p-2 rounded-lg bg-green-50 text-green-600 group-hover:bg-green-100 transition-colors">
+                              <QrCode className="h-5 w-5" />
+                            </div>
+                            <div>
+                              <p className="font-medium">{token.room.name}</p>
+                              <p className="text-xs text-gray-500">
+                                {new Date(token.validFrom).toLocaleString(
+                                  "th-TH",
+                                )}{" "}
+                                –{" "}
+                                {new Date(token.validTo).toLocaleString(
+                                  "th-TH",
+                                )}
+                              </p>
+                              {token.group && (
+                                <span className="text-xs bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full mt-1 inline-block">
+                                  กลุ่ม: {token.group.name}
+                                </span>
+                              )}
+                            </div>
                           </div>
-                          <div>
-                            <p className="font-medium">{token.room.name}</p>
-                            <p className="text-xs text-gray-500">
-                              {new Date(token.validFrom).toLocaleString("th-TH")} – {new Date(token.validTo).toLocaleString("th-TH")}
-                            </p>
-                            {token.group && (
-                              <span className="text-xs bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full mt-1 inline-block">
-                                กลุ่ม: {token.group.name}
-                              </span>
-                            )}
+                          <div className="flex items-center gap-2 text-gray-400 group-hover:text-(--color-secondary) transition-colors">
+                            <Eye className="h-4 w-4" />
+                            <ChevronRight className="h-4 w-4" />
                           </div>
                         </div>
-                        <div className="flex items-center gap-2 text-gray-400 group-hover:text-(--color-secondary) transition-colors">
-                          <Eye className="h-4 w-4" />
-                          <ChevronRight className="h-4 w-4" />
-                        </div>
-                      </div>
-                    </button>
-                  ))}
+                      </button>
+                    ))}
                 </div>
               </div>
             )}
 
             {/* Expired Tokens */}
-            {tokens.filter(t => new Date(t.validTo) <= new Date()).length > 0 && (
+            {tokens.filter((t) => new Date(t.validTo) <= new Date()).length >
+              0 && (
               <div>
-                <p className="text-sm font-medium text-gray-400 mb-2">หมดอายุ</p>
+                <p className="text-sm font-medium text-gray-400 mb-2">
+                  หมดอายุ
+                </p>
                 <div className="space-y-2">
-                  {tokens.filter(t => new Date(t.validTo) <= new Date()).slice(0, 10).map((token) => (
-                    <div key={token.id} className="card py-4 opacity-60">
-                      <div className="flex justify-between items-center">
-                        <div className="flex items-center gap-3">
-                          <div className="p-2 rounded-lg bg-gray-50 text-gray-400">
-                            <QrCode className="h-5 w-5" />
+                  {tokens
+                    .filter((t) => new Date(t.validTo) <= new Date())
+                    .slice(0, 10)
+                    .map((token) => (
+                      <div key={token.id} className="card py-4 opacity-60">
+                        <div className="flex justify-between items-center">
+                          <div className="flex items-center gap-3">
+                            <div className="p-2 rounded-lg bg-gray-50 text-gray-400">
+                              <QrCode className="h-5 w-5" />
+                            </div>
+                            <div>
+                              <p className="font-medium text-gray-500">
+                                {token.room.name}
+                              </p>
+                              <p className="text-xs text-gray-400">
+                                {new Date(token.validFrom).toLocaleString(
+                                  "th-TH",
+                                )}{" "}
+                                –{" "}
+                                {new Date(token.validTo).toLocaleString(
+                                  "th-TH",
+                                )}
+                              </p>
+                              {token.group && (
+                                <span className="text-xs bg-purple-50 text-purple-400 px-2 py-0.5 rounded-full mt-1 inline-block">
+                                  กลุ่ม: {token.group.name}
+                                </span>
+                              )}
+                            </div>
                           </div>
-                          <div>
-                            <p className="font-medium text-gray-500">{token.room.name}</p>
-                            <p className="text-xs text-gray-400">
-                              {new Date(token.validFrom).toLocaleString("th-TH")} – {new Date(token.validTo).toLocaleString("th-TH")}
-                            </p>
-                            {token.group && (
-                              <span className="text-xs bg-purple-50 text-purple-400 px-2 py-0.5 rounded-full mt-1 inline-block">
-                                กลุ่ม: {token.group.name}
-                              </span>
-                            )}
-                          </div>
+                          <span className="badge bg-gray-100 text-gray-500">
+                            หมดอายุ
+                          </span>
                         </div>
-                        <span className="badge bg-gray-100 text-gray-500">หมดอายุ</span>
                       </div>
-                    </div>
-                  ))}
+                    ))}
                 </div>
               </div>
             )}

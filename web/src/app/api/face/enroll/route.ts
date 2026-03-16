@@ -11,10 +11,10 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "กรุณาเข้าสู่ระบบ" }, { status: 401 });
     }
 
-    // Only STAFF and ADMIN can enroll face
+    // Only STUDENT / ADMIN / SUPER_ADMIN can enroll face
     if (session.user.role === "GUEST") {
       return NextResponse.json(
-        { error: "เฉพาะ STAFF เท่านั้นที่สามารถลงทะเบียนใบหน้าได้" },
+        { error: "เฉพาะ STUDENT เท่านั้นที่สามารถลงทะเบียนใบหน้าได้" },
         { status: 403 }
       );
     }

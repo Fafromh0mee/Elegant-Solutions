@@ -2,15 +2,16 @@
 
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
+import { isAdminRole } from "@/lib/permissions";
 
 export async function getCalendarDataAction(input: {
   startDate: string; // ISO string
   endDate: string;   // ISO string
   roomId?: string;
-  roleFilter?: "ALL" | "STAFF" | "GUEST";
+  roleFilter?: "ALL" | "STUDENT" | "GUEST";
 }) {
   const session = await auth();
-  if (!session || session.user.role !== "ADMIN") {
+  if (!session || !isAdminRole(session.user.role)) {
     return { error: "ไม่มีสิทธิ์เข้าถึง" };
   }
 
@@ -103,7 +104,7 @@ export async function getCalendarDataAction(input: {
 
 export async function getAllRoomsForCalendarAction() {
   const session = await auth();
-  if (!session || session.user.role !== "ADMIN") {
+  if (!session || !isAdminRole(session.user.role)) {
     return { rooms: [] };
   }
 

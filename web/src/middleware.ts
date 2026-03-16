@@ -1,23 +1,33 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
+import { isAdminRole } from "@/lib/permissions";
 
-const publicRoutes = ["/", "/login", "/register"];
+const publicRoutes = ["/", "/login", "/register", "/pending-approval", "/maintenance"];
 const authRoutes = ["/login", "/register"];
 
 export default auth((req) => {
   const { pathname } = req.nextUrl;
   const isLoggedIn = !!req.auth;
   const userRole = req.auth?.user?.role;
+  const userStatus = req.auth?.user?.status;
 
   // Allow public routes
   if (publicRoutes.includes(pathname)) {
     // If logged in and trying to access auth pages, redirect
     if (isLoggedIn && authRoutes.includes(pathname)) {
-      if (userRole === "ADMIN") {
+      if (userRole && isAdminRole(userRole)) {
         return NextResponse.redirect(new URL("/admin/dashboard", req.url));
       }
       return NextResponse.redirect(new URL("/dashboard", req.url));
     }
+
+    if (isLoggedIn && pathname === "/pending-approval" && userStatus === "APPROVED") {
+      if (userRole && isAdminRole(userRole)) {
+        return NextResponse.redirect(new URL("/admin/dashboard", req.url));
+      }
+      return NextResponse.redirect(new URL("/dashboard", req.url));
+    }
+
     return NextResponse.next();
   }
 
@@ -36,8 +46,13 @@ export default auth((req) => {
     return NextResponse.redirect(new URL("/login", req.url));
   }
 
-  // Admin routes → only ADMIN role
-  if (pathname.startsWith("/admin") && userRole !== "ADMIN") {
+  // Guests must be approved before using internal areas.
+  if (userRole === "GUEST" && userStatus && userStatus !== "APPROVED") {
+    return NextResponse.redirect(new URL("/pending-approval", req.url));
+  }
+
+  // Admin routes → ADMIN / SUPER_ADMIN
+  if (pathname.startsWith("/admin") && (!userRole || !isAdminRole(userRole))) {
     return NextResponse.redirect(new URL("/dashboard", req.url));
   }
 

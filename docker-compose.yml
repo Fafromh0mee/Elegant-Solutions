@@ -19,47 +19,47 @@ services:
       retries: 5
 
   # Next.js Web Application
-  web:
-    build:
-      context: ./web
-      dockerfile: Dockerfile
-    container_name: elegant-web
-    restart: unless-stopped
-    environment:
-      DATABASE_URL: "postgresql://postgres:postgres@postgres:5432/elegant_solutions?schema=public"
-      AUTH_SECRET: "${AUTH_SECRET:-super-secret-change-in-production}"
-      AUTH_URL: "http://localhost:3000"
-      AI_SERVICE_URL: "http://ai-service:8000"
-    ports:
-      - "3000:3000"
-    depends_on:
-      postgres:
-        condition: service_healthy
+  # web:
+  #   build:
+  #     context: ./web
+  #     dockerfile: Dockerfile
+  #   container_name: elegant-web
+  #   restart: unless-stopped
+  #   environment:
+  #     DATABASE_URL: "postgresql://postgres:postgres@postgres:5432/elegant_solutions?schema=public"
+  #     AUTH_SECRET: "${AUTH_SECRET:-super-secret-change-in-production}"
+  #     AUTH_URL: "http://localhost:3000"
+  #     AI_SERVICE_URL: "http://ai-service:8000"
+  #   ports:
+  #     - "3000:3000"
+  #   depends_on:
+  #     postgres:
+  #       condition: service_healthy
 
-  # AI Service (Stub - Phase 2)
-  ai-service:
-    build:
-      context: ./ai-service
-      dockerfile: Dockerfile
-    container_name: elegant-ai
-    restart: unless-stopped
-    ports:
-      - "8000:8000"
-    environment:
-      DATABASE_URL: "postgresql://postgres:postgres@postgres:5432/elegant_solutions?schema=public"
+  # # AI Service (Stub - Phase 2)
+  # ai-service:
+  #   build:
+  #     context: ./ai-service
+  #     dockerfile: Dockerfile
+  #   container_name: elegant-ai
+  #   restart: unless-stopped
+  #   ports:
+  #     - "8000:8000"
+  #   environment:
+  #     DATABASE_URL: "postgresql://postgres:postgres@postgres:5432/elegant_solutions?schema=public"
 
   # Nginx Reverse Proxy
-  nginx:
-    image: nginx:alpine
-    container_name: elegant-nginx
-    restart: unless-stopped
-    ports:
-      - "80:80"
-    volumes:
-      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
-    depends_on:
-      - web
-      - ai-service
+  # nginx:
+  #   image: nginx:alpine
+  #   container_name: elegant-nginx
+  #   restart: unless-stopped
+  #   ports:
+  #     - "80:80"
+  #   volumes:
+  #     - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+  #   depends_on:
+  #     - web
+  #     - ai-service
 
 volumes:
   postgres_data:

@@ -5,8 +5,9 @@ import { prisma } from "@/lib/prisma";
 import { hash } from "bcryptjs";
 import type { Role } from "@/lib/types";
 import { revalidatePath } from "next/cache";
+import { isAdminRole, isSuperAdmin } from "@/lib/permissions";
 
-// Only ADMIN can create users
+// ADMIN and SUPER_ADMIN can create users.
 export async function createUserAction(input: {
   name: string;
   email: string;
@@ -15,8 +16,15 @@ export async function createUserAction(input: {
   phone?: string;
 }) {
   const session = await auth();
-  if (!session || session.user.role !== "ADMIN") {
+  if (!session || !isAdminRole(session.user.role)) {
     return { error: "ไม่มีสิทธิ์ดำเนินการ" };
+  }
+
+  if (
+    (input.role === "ADMIN" || input.role === "SUPER_ADMIN") &&
+    !isSuperAdmin(session.user.role)
+  ) {
+    return { error: "เฉพาะ SUPER_ADMIN ที่กำหนดสิทธิ์ ADMIN/SUPER_ADMIN ได้" };
   }
 
   try {
@@ -37,6 +45,7 @@ export async function createUserAction(input: {
         hashedPassword,
         phone: input.phone || null,
         role: input.role,
+        status: "APPROVED",
       },
     });
 
@@ -58,7 +67,7 @@ export async function createUserAction(input: {
 
 export async function getUsersAction() {
   const session = await auth();
-  if (!session || session.user.role !== "ADMIN") {
+  if (!session || !isAdminRole(session.user.role)) {
     return { error: "ไม่มีสิทธิ์ดำเนินการ", users: [] };
   }
 
@@ -68,6 +77,8 @@ export async function getUsersAction() {
       name: true,
       email: true,
       role: true,
+      status: true,
+      studentId: true,
       phone: true,
       createdAt: true,
       faceProfile: {
@@ -88,7 +99,7 @@ export async function getUsersAction() {
 
 export async function deleteUserAction(userId: string) {
   const session = await auth();
-  if (!session || session.user.role !== "ADMIN") {
+  if (!session || !isAdminRole(session.user.role)) {
     return { error: "ไม่มีสิทธิ์ดำเนินการ" };
   }
 
@@ -97,11 +108,84 @@ export async function deleteUserAction(userId: string) {
   }
 
   try {
+    const target = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { role: true, email: true },
+    });
+
+    if (!target) {
+      return { error: "ไม่พบผู้ใช้" };
+    }
+
+    if (
+      (target.role === "ADMIN" || target.role === "SUPER_ADMIN") &&
+      !isSuperAdmin(session.user.role)
+    ) {
+      return { error: "เฉพาะ SUPER_ADMIN ที่จัดการบัญชี ADMIN/SUPER_ADMIN ได้" };
+    }
+
     await prisma.user.delete({ where: { id: userId } });
+
+    await prisma.log.create({
+      data: {
+        userId: session.user.id,
+        action: "USER_UPDATED",
+        details: `Deleted user: ${target.email}`,
+      },
+    });
+
     revalidatePath("/admin/users");
     return { success: true };
   } catch (error) {
     console.error("Delete user error:", error);
+    return { error: "เกิดข้อผิดพลาด" };
+  }
+}
+
+export async function approveUserAction(userId: string) {
+  const session = await auth();
+  if (!session || !isAdminRole(session.user.role)) {
+    return { error: "ไม่มีสิทธิ์ดำเนินการ" };
+  }
+
+  try {
+    const user = await prisma.user.findUnique({ where: { id: userId }, select: { email: true } });
+    await prisma.user.update({ where: { id: userId }, data: { status: "APPROVED" } });
+    await prisma.log.create({
+      data: {
+        userId: session.user.id,
+        action: "USER_APPROVED",
+        details: `Approved guest account: ${user?.email ?? userId}`,
+      },
+    });
+    revalidatePath("/admin/users");
+    return { success: true };
+  } catch (error) {
+    console.error("Approve user error:", error);
+    return { error: "เกิดข้อผิดพลาด" };
+  }
+}
+
+export async function rejectUserAction(userId: string) {
+  const session = await auth();
+  if (!session || !isAdminRole(session.user.role)) {
+    return { error: "ไม่มีสิทธิ์ดำเนินการ" };
+  }
+
+  try {
+    const user = await prisma.user.findUnique({ where: { id: userId }, select: { email: true } });
+    await prisma.user.update({ where: { id: userId }, data: { status: "REJECTED" } });
+    await prisma.log.create({
+      data: {
+        userId: session.user.id,
+        action: "USER_REJECTED",
+        details: `Rejected guest account: ${user?.email ?? userId}`,
+      },
+    });
+    revalidatePath("/admin/users");
+    return { success: true };
+  } catch (error) {
+    console.error("Reject user error:", error);
     return { error: "เกิดข้อผิดพลาด" };
   }
 }
@@ -114,7 +198,7 @@ export async function updateUserAction(userId: string, data: {
   phone?: string;
 }) {
   const session = await auth();
-  if (!session || session.user.role !== "ADMIN") {
+  if (!session || !isAdminRole(session.user.role)) {
     return { error: "ไม่มีสิทธิ์ดำเนินการ" };
   }
 
@@ -122,7 +206,31 @@ export async function updateUserAction(userId: string, data: {
     return { error: "ไม่สามารถเปลี่ยนบทบาทของตัวเองได้" };
   }
 
+  if (
+    data.role &&
+    (data.role === "ADMIN" || data.role === "SUPER_ADMIN") &&
+    !isSuperAdmin(session.user.role)
+  ) {
+    return { error: "เฉพาะ SUPER_ADMIN ที่กำหนดสิทธิ์ ADMIN/SUPER_ADMIN ได้" };
+  }
+
   try {
+    const target = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { role: true, email: true, name: true },
+    });
+
+    if (!target) {
+      return { error: "ไม่พบผู้ใช้" };
+    }
+
+    if (
+      (target.role === "ADMIN" || target.role === "SUPER_ADMIN") &&
+      !isSuperAdmin(session.user.role)
+    ) {
+      return { error: "เฉพาะ SUPER_ADMIN ที่แก้ไขบัญชี ADMIN/SUPER_ADMIN ได้" };
+    }
+
     // Check email uniqueness if email is being changed
     if (data.email) {
       const existingUser = await prisma.user.findFirst({
@@ -155,7 +263,7 @@ export async function updateUserAction(userId: string, data: {
       data: {
         userId: session.user.id,
         action: "USER_UPDATED",
-        details: `Updated user: ${data.name || data.email}`,
+        details: `Updated user: ${data.name || data.email || target.name || target.email}`,
       },
     });
 

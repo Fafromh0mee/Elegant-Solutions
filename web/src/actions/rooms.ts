@@ -3,6 +3,7 @@
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
+import { isAdminRole } from "@/lib/permissions";
 
 export async function createRoomAction(input: {
   name: string;
@@ -12,7 +13,7 @@ export async function createRoomAction(input: {
   guestAccess?: boolean;
 }) {
   const session = await auth();
-  if (!session || session.user.role !== "ADMIN") {
+  if (!session || !isAdminRole(session.user.role)) {
     return { error: "ไม่มีสิทธิ์ดำเนินการ" };
   }
 
@@ -62,7 +63,7 @@ export async function updateRoomAction(
   }
 ) {
   const session = await auth();
-  if (!session || session.user.role !== "ADMIN") {
+  if (!session || !isAdminRole(session.user.role)) {
     return { error: "ไม่มีสิทธิ์ดำเนินการ" };
   }
 
@@ -111,7 +112,7 @@ export async function getAvailableRoomsAction() {
 
 export async function deleteRoomAction(roomId: string) {
   const session = await auth();
-  if (!session || session.user.role !== "ADMIN") {
+  if (!session || !isAdminRole(session.user.role)) {
     return { error: "ไม่มีสิทธิ์ดำเนินการ" };
   }
 

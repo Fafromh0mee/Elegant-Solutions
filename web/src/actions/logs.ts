@@ -2,6 +2,7 @@
 
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { isAdminRole } from "@/lib/permissions";
 
 export async function getLogsAction(filters?: {
   userId?: string;
@@ -10,7 +11,7 @@ export async function getLogsAction(filters?: {
   limit?: number;
 }) {
   const session = await auth();
-  if (!session || session.user.role !== "ADMIN") {
+  if (!session || !isAdminRole(session.user.role)) {
     return { error: "ไม่มีสิทธิ์ดำเนินการ", logs: [] };
   }
 

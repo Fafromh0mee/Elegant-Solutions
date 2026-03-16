@@ -2,11 +2,12 @@ import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import ExcelJS from "exceljs";
+import { isAdminRole } from "@/lib/permissions";
 
 export async function GET() {
   const session = await auth();
 
-  if (!session || session.user.role !== "ADMIN") {
+  if (!session || !isAdminRole(session.user.role)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
