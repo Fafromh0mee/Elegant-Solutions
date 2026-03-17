@@ -39,7 +39,7 @@ export default function RegisterPage() {
       if (result.error) {
         setError(result.error);
       } else {
-        router.push("/login?registered=true");
+        router.push("/pending-approval?registered=true");
       }
     } catch {
       setError("เกิดข้อผิดพลาด กรุณาลองใหม่");

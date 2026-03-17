@@ -3,6 +3,7 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 import React from "react";
+import { motion } from "framer-motion";
 import { Navbar } from "@/components/navbar";
 import {
   Shield,
@@ -18,10 +19,40 @@ import {
   CalendarClock,
   History,
   ChevronDown,
-  Mail,
-  Phone,
-  MapPin,
 } from "lucide-react";
+
+// Animation variants
+const containerVariants = {
+  hidden: { opacity: 0 },
+  visible: {
+    opacity: 1,
+    transition: {
+      staggerChildren: 0.2,
+    },
+  },
+};
+
+const itemVariants = {
+  hidden: { opacity: 0, y: 30 },
+  visible: {
+    opacity: 1,
+    y: 0,
+    transition: {
+      duration: 0.6,
+    },
+  },
+};
+
+const fadeInUpVariants = {
+  hidden: { opacity: 0, y: 40 },
+  visible: {
+    opacity: 1,
+    y: 0,
+    transition: {
+      duration: 0.8,
+    },
+  },
+};
 
 const mainFeatures = [
   {
@@ -85,7 +116,7 @@ const benefitPoints = [
     number: "03",
     title: "รองรับการเติบโตในอนาคต",
     description:
-      "เริ่มจาก use case เล็กก่อน แล้วค่อยต่อยอดไปหลายห้อง หลายอาคาร หรือหลายแผนกได้โดยไม่ต้องเปลี่ยนวิธีคิดใหม่",
+      "สามารถเริ่มจาก use case เล็ก ๆ ก่อน แล้วค่อยต่อยอดไปหลายห้อง หลายอาคาร หรือหลายแผนกได้",
   },
   {
     number: "04",
@@ -124,9 +155,19 @@ export default function HomePage() {
       <Navbar />
 
       {/* Hero */}
-      <section className="relative overflow-hidden flex justify-center">
+      <motion.section
+        className="relative overflow-hidden flex justify-center"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ duration: 0.8 }}
+      >
         <div className="w-full max-w-7xl p-4 sm:p-6 lg:p-8 min-h-[50vh] lg:h-[60vh] flex flex-col lg:flex-row justify-center lg:justify-between items-center gap-8 lg:gap-12">
-          <div className="text-center lg:text-left h-fit z-10">
+          <motion.div
+            className="text-center lg:text-left h-fit z-10"
+            initial={{ opacity: 0, x: -50 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ duration: 0.8, delay: 0.2 }}
+          >
             <h1 className="text-3xl sm:text-4xl lg:text-5xl font-bold tracking-tight text-gray-900">
               <span className="text-(--color-primary)">Elegant Solutions</span>
               <br />
@@ -147,26 +188,44 @@ export default function HomePage() {
                 เข้าสู่ระบบ
               </Link> */}
             </div>
-          </div>
-          <div className="hidden lg:block w-87.5 lg:w-96 lg:max-w-none">
+          </motion.div>
+          <motion.div
+            className="hidden lg:block w-87.5 lg:w-96 lg:max-w-none"
+            initial={{ opacity: 0, x: 50 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ duration: 0.8, delay: 0.4 }}
+          >
             <img
               className="w-full h-auto"
               src="https://cdn.aona.co.th/u/nicenathapong/files/7b218a3b4841ab5190d0f423aab526eea8513101990648589b0d3b167dbaa5a6.png"
               alt="hero_image"
             />
-          </div>
+          </motion.div>
         </div>
 
         {/* Decorative gradient */}
         <div className="absolute inset-0 -z-10">
           <div className="absolute inset-0 bg-linear-to-b from-(--color-primary-light) to-transparent" />
         </div>
-      </section>
+      </motion.section>
 
       {/* Features */}
-      <section id="features" className="py-24 bg-white">
+      <motion.section
+        id="features"
+        className="py-24 bg-white"
+        initial={{ opacity: 0 }}
+        whileInView={{ opacity: 1 }}
+        transition={{ duration: 0.6 }}
+        viewport={{ once: true, amount: 0.2 }}
+      >
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-          <div className="mx-auto max-w-2xl text-center mb-16">
+          <motion.div
+            className="mx-auto max-w-2xl text-center mb-16"
+            variants={fadeInUpVariants}
+            initial="hidden"
+            whileInView="visible"
+            viewport={{ once: true, amount: 0.5 }}
+          >
             <span className="badge-admin">Core Value</span>
             <h2 className="mt-5 text-3xl font-bold text-gray-900 sm:text-4xl">
               ฟีเจอร์หลักที่ช่วยให้ระบบนี้น่าใช้งานจริงในองค์กร
@@ -176,29 +235,46 @@ export default function HomePage() {
               แต่เป็นแพลตฟอร์มที่ช่วยให้การควบคุมสิทธิ์ การใช้งานหน้างาน
               และการตรวจสอบย้อนหลังอยู่ในที่เดียว
             </p>
-          </div>
+          </motion.div>
 
-          <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3 max-w-5xl mx-auto">
+          <motion.div
+            className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3 max-w-5xl mx-auto"
+            variants={containerVariants}
+            initial="hidden"
+            whileInView="visible"
+            viewport={{ once: true, amount: 0.2 }}
+          >
             {mainFeatures.map((feature) => (
-              <FeatureSellingCard
-                key={feature.title}
-                icon={feature.icon}
-                eyebrow={feature.eyebrow}
-                title={feature.title}
-                description={feature.description}
-              />
+              <motion.div key={feature.title} variants={itemVariants}>
+                <FeatureSellingCard
+                  icon={feature.icon}
+                  eyebrow={feature.eyebrow}
+                  title={feature.title}
+                  description={feature.description}
+                />
+              </motion.div>
             ))}
-          </div>
+          </motion.div>
         </div>
-      </section>
+      </motion.section>
 
       {/* Who It's For */}
-      <section
+      <motion.section
         id="use-case"
         className="py-24 bg-linear-to-b from-gray-50 to-blue-50"
+        initial={{ opacity: 0 }}
+        whileInView={{ opacity: 1 }}
+        transition={{ duration: 0.6 }}
+        viewport={{ once: true, amount: 0.2 }}
       >
         <div className="mx-auto grid max-w-7xl gap-12 px-4 sm:px-6 lg:grid-cols-[0.95fr_1.05fr] lg:px-8">
-          <div className="lg:pr-10">
+          <motion.div
+            className="lg:pr-10"
+            initial={{ opacity: 0, x: -50 }}
+            whileInView={{ opacity: 1, x: 0 }}
+            transition={{ duration: 0.6 }}
+            viewport={{ once: true, amount: 0.5 }}
+          >
             <span className="badge-admin">Use Cases</span>
             <h2 className="mt-5 text-3xl font-bold text-gray-900 sm:text-4xl">
               ตอบโจทย์ทุกประเภทองค์กร
@@ -210,63 +286,109 @@ export default function HomePage() {
             </p>
 
             <div className="mt-8 space-y-4">
-              <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+              <motion.div
+                className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm"
+                initial={{ opacity: 0, y: 20 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.5, delay: 0.1 }}
+                viewport={{ once: true, amount: 0.5 }}
+              >
                 <p className="text-2xl font-bold text-(--color-cta)">
                   6 Industries
                 </p>
                 <p className="mt-1 text-sm text-gray-500">
                   รองรับการใช้งานจริงทั่วเรื่องประเภทขององค์กร
                 </p>
-              </div>
-              <div className="rounded-3xl bg-(--color-primary) p-6 text-white shadow-lg shadow-slate-200/60">
+              </motion.div>
+              <motion.div
+                className="rounded-3xl bg-(--color-primary) p-6 text-white shadow-lg shadow-slate-200/60"
+                initial={{ opacity: 0, y: 20 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.5, delay: 0.2 }}
+                viewport={{ once: true, amount: 0.5 }}
+              >
                 <p className="text-sm text-white/70">สิ่งที่เหมือนกัน</p>
                 <p className="mt-2 text-lg font-semibold leading-8">
                   ทุกองค์กรต้องการความปลอดภัย ติดตามการเข้าถึง
                   และควบคุมสิทธิ์ได้
                 </p>
-              </div>
+              </motion.div>
             </div>
-          </div>
+          </motion.div>
 
-          <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
-            <UseCaseCard
-              icon={<GraduationCap className="h-12 w-12" />}
-              title="สถาบันการศึกษา"
-              description="จัดการห้อง LAB, ห้องเรียน และห้องประชุม ควบคุมสิทธิ์นักศึกษาและอาจารย์ได้อย่างมีประสิทธิภาพ"
-            />
-            <UseCaseCard
-              icon={<Building2 className="h-12 w-12" />}
-              title="บริษัทและองค์กร"
-              description="บริหารจัดการห้องประชุม ห้องทำงาน พร้อมระบบรายงานการใช้งานแบบ Real-time"
-            />
-            <UseCaseCard
-              icon={<Hospital className="h-12 w-12" />}
-              title="โรงพยาบาล / คลินิก"
-              description="ควบคุมการเข้าออกห้องตรวจ ห้องปฏิบัติการ ด้วยระบบรักษาความปลอดภัยสูง"
-            />
-            <UseCaseCard
-              icon={<Factory className="h-12 w-12" />}
-              title="โรงงานอุตสาหกรรม"
-              description="จัดการสิทธิ์เข้าโซนอันตราย ห้องควบคุม และพื้นที่จำกัดสิทธิ์"
-            />
-            <UseCaseCard
-              icon={<Briefcase className="h-12 w-12" />}
-              title="Co-Working Space"
-              description="ให้บริการจองห้องและเช็คอินอัตโนมัติ สะดวกทั้งผู้ให้บริการและลูกค้า"
-            />
-            <UseCaseCard
-              icon={<Landmark className="h-12 w-12" />}
-              title="หน่วยงานราชการ"
-              description="ระบบรักษาความปลอดภัย พร้อม Log การเข้าออกที่สามารถตรวจสอบย้อนหลังได้"
-            />
-          </div>
+          <motion.div
+            className="grid grid-cols-1 gap-5 sm:grid-cols-2"
+            variants={containerVariants}
+            initial="hidden"
+            whileInView="visible"
+            viewport={{ once: true, amount: 0.2 }}
+          >
+            {[
+              {
+                icon: <GraduationCap className="h-12 w-12" />,
+                title: "สถาบันการศึกษา",
+                description:
+                  "จัดการห้อง LAB, ห้องเรียน และห้องประชุม ควบคุมสิทธิ์นักศึกษาและอาจารย์ได้อย่างมีประสิทธิภาพ",
+              },
+              {
+                icon: <Building2 className="h-12 w-12" />,
+                title: "บริษัทและองค์กร",
+                description:
+                  "บริหารจัดการห้องประชุม ห้องทำงาน พร้อมระบบรายงานการใช้งานแบบ Real-time",
+              },
+              {
+                icon: <Hospital className="h-12 w-12" />,
+                title: "โรงพยาบาล / คลินิก",
+                description:
+                  "ควบคุมการเข้าออกห้องตรวจ ห้องปฏิบัติการ ด้วยระบบรักษาความปลอดภัยสูง",
+              },
+              {
+                icon: <Factory className="h-12 w-12" />,
+                title: "โรงงานอุตสาหกรรม",
+                description:
+                  "จัดการสิทธิ์เข้าโซนอันตราย ห้องควบคุม และพื้นที่จำกัดสิทธิ์",
+              },
+              {
+                icon: <Briefcase className="h-12 w-12" />,
+                title: "Co-Working Space",
+                description:
+                  "ให้บริการจองห้องและเช็คอินอัตโนมัติ สะดวกทั้งผู้ให้บริการและลูกค้า",
+              },
+              {
+                icon: <Landmark className="h-12 w-12" />,
+                title: "หน่วยงานราชการ",
+                description:
+                  "ระบบรักษาความปลอดภัย พร้อม Log การเข้าออกที่สามารถตรวจสอบย้อนหลังได้",
+              },
+            ].map((item) => (
+              <motion.div key={item.title} variants={itemVariants}>
+                <UseCaseCard
+                  icon={item.icon}
+                  title={item.title}
+                  description={item.description}
+                />
+              </motion.div>
+            ))}
+          </motion.div>
         </div>
-      </section>
+      </motion.section>
 
       {/* Why Choose Us */}
-      <section className="py-24 bg-linear-to-b from-white to-slate-50">
+      <motion.section
+        className="py-24 bg-linear-to-b from-white to-slate-50"
+        initial={{ opacity: 0 }}
+        whileInView={{ opacity: 1 }}
+        transition={{ duration: 0.6 }}
+        viewport={{ once: true, amount: 0.2 }}
+      >
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-          <div className="mx-auto max-w-2xl text-center mb-16">
+          <motion.div
+            className="mx-auto max-w-2xl text-center mb-16"
+            variants={fadeInUpVariants}
+            initial="hidden"
+            whileInView="visible"
+            viewport={{ once: true, amount: 0.5 }}
+          >
             <span className="badge-admin">Why Us</span>
             <h2 className="mt-5 text-3xl font-bold text-gray-900 sm:text-4xl">
               ทำไมต้อง Elegant Solutions
@@ -276,25 +398,45 @@ export default function HomePage() {
               แต่ต้องการระบบที่ดูแลตั้งแต่ การกำหนดสิทธิ์ การใช้งานหน้างาน
               ไปจนถึงการตรวจสอบย้อนหลังแบบครบวงจร
             </p>
-          </div>
+          </motion.div>
 
-          <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4 max-w-6xl mx-auto">
+          <motion.div
+            className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4 max-w-6xl mx-auto"
+            variants={containerVariants}
+            initial="hidden"
+            whileInView="visible"
+            viewport={{ once: true, amount: 0.2 }}
+          >
             {benefitPoints.map((item) => (
-              <BenefitTimelineCard
-                key={item.number}
-                number={item.number}
-                title={item.title}
-                description={item.description}
-              />
+              <motion.div key={item.number} variants={itemVariants}>
+                <BenefitTimelineCard
+                  number={item.number}
+                  title={item.title}
+                  description={item.description}
+                />
+              </motion.div>
             ))}
-          </div>
+          </motion.div>
         </div>
-      </section>
+      </motion.section>
 
       {/* FAQ */}
-      <section id="FAQ" className="py-24 bg-white">
+      <motion.section
+        id="FAQ"
+        className="py-24 bg-white"
+        initial={{ opacity: 0 }}
+        whileInView={{ opacity: 1 }}
+        transition={{ duration: 0.6 }}
+        viewport={{ once: true, amount: 0.2 }}
+      >
         <div className="mx-auto max-w-5xl px-4 sm:px-6 lg:px-8">
-          <div className="mx-auto max-w-2xl text-center">
+          <motion.div
+            className="mx-auto max-w-2xl text-center"
+            variants={fadeInUpVariants}
+            initial="hidden"
+            whileInView="visible"
+            viewport={{ once: true, amount: 0.5 }}
+          >
             <span className="badge-admin">FAQ</span>
             <h2 className="mt-5 text-3xl font-bold text-gray-900 sm:text-4xl">
               คำถามที่พบบ่อย
@@ -302,22 +444,32 @@ export default function HomePage() {
             <p className="mt-4 text-gray-600">
               สำหรับคำถามที่มักใช้ประกอบการตัดสินใจก่อนเริ่มใช้งาน
             </p>
-          </div>
+          </motion.div>
 
-          <div className="mt-12 space-y-4">
+          <motion.div
+            className="mt-12 space-y-4"
+            variants={containerVariants}
+            initial="hidden"
+            whileInView="visible"
+            viewport={{ once: true, amount: 0.2 }}
+          >
             {faqs.map((item) => (
-              <FaqItem
-                key={item.question}
-                question={item.question}
-                answer={item.answer}
-              />
+              <motion.div key={item.question} variants={itemVariants}>
+                <FaqItem question={item.question} answer={item.answer} />
+              </motion.div>
             ))}
-          </div>
+          </motion.div>
         </div>
-      </section>
+      </motion.section>
 
       {/* Footer */}
-      <footer className="bg-(--color-primary-light) text-gray-900">
+      <motion.footer
+        className="bg-(--color-primary-light) text-gray-900"
+        initial={{ opacity: 0 }}
+        whileInView={{ opacity: 1 }}
+        transition={{ duration: 0.6 }}
+        viewport={{ once: true }}
+      >
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-12">
           <div className="flex flex-col md:flex-row gap-8 mb-8">
             {/* Brand */}
@@ -400,7 +552,7 @@ export default function HomePage() {
             </div>
           </div>
         </div>
-      </footer>
+      </motion.footer>
     </div>
   );
 }
@@ -478,12 +630,24 @@ function BenefitTimelineCard({
 
 function FaqItem({ question, answer }: { question: string; answer: string }) {
   return (
-    <details className="group rounded-2xl border border-slate-200 bg-slate-50 px-6 py-5 shadow-sm transition-colors duration-200">
+    <motion.details
+      className="group rounded-2xl border border-slate-200 bg-slate-50 px-6 py-5 shadow-sm transition-colors duration-200"
+      initial={{ opacity: 0 }}
+      whileInView={{ opacity: 1 }}
+      viewport={{ once: true }}
+    >
       <summary className="flex cursor-pointer list-none items-center justify-between gap-4 text-left text-lg font-semibold text-gray-900">
         <span>{question}</span>
         <ChevronDown className="h-5 w-5 shrink-0 text-gray-500 transition-transform duration-200 group-open:rotate-180" />
       </summary>
-      <p className="mt-4 pr-8 leading-7 text-gray-600">{answer}</p>
-    </details>
+      <motion.p
+        className="mt-4 pr-8 leading-7 text-gray-600"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ delay: 0.1 }}
+      >
+        {answer}
+      </motion.p>
+    </motion.details>
   );
 }

@@ -25,6 +25,7 @@
     "bcryptjs": "^3.0.3",
     "clsx": "^2.1.1",
     "exceljs": "^4.4.0",
+    "framer-motion": "^12.37.0",
     "html5-qrcode": "^2.3.8",
     "lucide-react": "^0.563.0",
     "next": "16.1.6",
