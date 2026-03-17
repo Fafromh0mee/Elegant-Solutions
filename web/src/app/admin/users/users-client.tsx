@@ -18,6 +18,7 @@ interface UserItem {
   email: string;
   role: string;
   status: string;
+  studentId: string | null;
   phone: string | null;
   faceEnrolled: boolean;
   createdAt: Date;
@@ -40,6 +41,8 @@ export function UsersClient({ initialUsers }: { initialUsers: UserItem[] }) {
   const [editPassword, setEditPassword] = useState("");
   const [editRole, setEditRole] = useState<Role>("STUDENT");
   const [editPhone, setEditPhone] = useState("");
+  const [editStudentId, setEditStudentId] = useState("");
+  const [studentIdOverrideReason, setStudentIdOverrideReason] = useState("");
 
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
@@ -78,6 +81,8 @@ export function UsersClient({ initialUsers }: { initialUsers: UserItem[] }) {
     setEditPassword("");
     setEditRole(user.role as Role);
     setEditPhone(user.phone || "");
+    setEditStudentId(user.studentId || "");
+    setStudentIdOverrideReason("");
     setShowCreate(false);
   }
 
@@ -88,6 +93,8 @@ export function UsersClient({ initialUsers }: { initialUsers: UserItem[] }) {
     setEditPassword("");
     setEditRole("STUDENT");
     setEditPhone("");
+    setEditStudentId("");
+    setStudentIdOverrideReason("");
   }
 
   async function handleUpdate(e: React.FormEvent) {
@@ -102,6 +109,8 @@ export function UsersClient({ initialUsers }: { initialUsers: UserItem[] }) {
       password: editPassword || undefined,
       role: editRole,
       phone: editPhone,
+      studentId: editStudentId,
+      studentIdOverrideReason,
     });
     setLoading(false);
 
@@ -342,6 +351,30 @@ export function UsersClient({ initialUsers }: { initialUsers: UserItem[] }) {
                   onChange={(e) => setEditPhone(e.target.value)}
                 />
               </div>
+              <div>
+                <label className="label">รหัสนักศึกษา (10 หลัก)</label>
+                <input
+                  type="text"
+                  className="input"
+                  value={editStudentId}
+                  onChange={(e) =>
+                    setEditStudentId(
+                      e.target.value.replace(/\D/g, "").slice(0, 10),
+                    )
+                  }
+                  placeholder="เช่น 1660708635"
+                />
+              </div>
+              <div>
+                <label className="label">เหตุผลการแก้ไข Student ID</label>
+                <input
+                  type="text"
+                  className="input"
+                  value={studentIdOverrideReason}
+                  onChange={(e) => setStudentIdOverrideReason(e.target.value)}
+                  placeholder="จำเป็นสำหรับ ADMIN กรณี override"
+                />
+              </div>
             </div>
             <div className="flex gap-2">
               <button type="submit" className="btn-primary" disabled={loading}>
@@ -368,6 +401,7 @@ export function UsersClient({ initialUsers }: { initialUsers: UserItem[] }) {
               <th className="pb-3 pr-4">อีเมล</th>
               <th className="pb-3 pr-4">บทบาท</th>
               <th className="pb-3 pr-4">สถานะ</th>
+              <th className="pb-3 pr-4">Student ID</th>
               <th className="pb-3 pr-4">Face</th>
               <th className="pb-3 pr-4">เบอร์โทร</th>
               <th className="pb-3 pr-4">วันที่สร้าง</th>
@@ -409,6 +443,7 @@ export function UsersClient({ initialUsers }: { initialUsers: UserItem[] }) {
                     </span>
                   )}
                 </td>
+                <td className="py-3 pr-4">{user.studentId || "-"}</td>
                 <td className="py-3 pr-4">
                   {user.role !== "GUEST" ? (
                     user.faceEnrolled ? (

@@ -1,4 +1,12 @@
-studentId,roomCode,dayOfWeek,startTime,endTime,subjectName,subjectCode
-65010001,A101,1,09:00,10:30,Data Structures,CS201
-65010002,B204,1,13:00,14:30,Database Systems,CS301
-65010003,C301,2,08:30,10:00,Software Engineering,CS305
+studentId,roomCode,dayOfWeek,startTime,endTime,section,subjectName,subjectCode
+1660708635,B4-303,tue,14:30,16:50,327C,Organization of Programming Languages,CS410
+1660708635,B4-604,wed,12:00,14:20,327A,Data Analytics and Mining,CS462
+1660708635,C2-408,wed,14:30,16:50,227F,Discrete Structures,CS250
+1660708635,A4-204,thu,08:40,11:00,427B,Image and Video Processing,CS483
+1660708635,A1-403,thu,14:30,16:50,327A,Computer Science Project I,CS497
+1660703413,B4-603,tue,08:40,11:00,328A,Low-Code and No-Code Development Platform,IT319
+1660703413,B4-506,wed,12:00,14:20,328A,Robotic Process Automation Development,IT453
+1660703413,A1-407,thu,08:40,11:00,328A,Web Administration,IT464
+1660703413,A1-403,thu,14:30,16:50,327A,Information Technology Project I,IT497
+1660703413,A1-407,fri,08:40,11:00,328A,Cybersecurity Management,IT441
+1660703413,B4-506,fri,12:00,14:20,328B,Integrated Digital Marketing,IT360

@@ -69,19 +69,30 @@ export default async function AdminDashboardPage() {
                 </tr>
               </thead>
               <tbody>
-                {recentLogs.map((log: { id: string; createdAt: Date; user: { name: string; email: string } | null; action: string; room: { name: string } | null; details: string | null }) => (
-                  <tr key={log.id} className="border-b last:border-0">
-                    <td className="py-3 pr-4 text-gray-500 whitespace-nowrap">
-                      {new Date(log.createdAt).toLocaleString("th-TH")}
-                    </td>
-                    <td className="py-3 pr-4">{log.user?.name || "-"}</td>
-                    <td className="py-3 pr-4">
-                      <ActionBadge action={log.action} />
-                    </td>
-                    <td className="py-3 pr-4">{log.room?.name || "-"}</td>
-                    <td className="py-3 text-gray-500">{log.details || "-"}</td>
-                  </tr>
-                ))}
+                {recentLogs.map(
+                  (log: {
+                    id: string;
+                    createdAt: Date;
+                    user: { name: string; email: string } | null;
+                    action: string;
+                    room: { name: string } | null;
+                    details: string | null;
+                  }) => (
+                    <tr key={log.id} className="border-b last:border-0">
+                      <td className="py-3 pr-4 text-gray-500 whitespace-nowrap">
+                        {new Date(log.createdAt).toLocaleString("th-TH")}
+                      </td>
+                      <td className="py-3 pr-4">{log.user?.name || "-"}</td>
+                      <td className="py-3 pr-4">
+                        <ActionBadge action={log.action} />
+                      </td>
+                      <td className="py-3 pr-4">{log.room?.name || "-"}</td>
+                      <td className="py-3 text-gray-500">
+                        {log.details || "-"}
+                      </td>
+                    </tr>
+                  ),
+                )}
               </tbody>
             </table>
           </div>

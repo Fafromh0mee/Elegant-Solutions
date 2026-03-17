@@ -176,6 +176,7 @@ model ClassSchedule {
   dayOfWeek   Int      // 0=Sunday … 6=Saturday
   startTime   String   // "HH:MM" 24-hour
   endTime     String   // "HH:MM" 24-hour
+  section     String?
   subjectName String?
   subjectCode String?
   semester    String?
@@ -186,6 +187,8 @@ model ClassSchedule {
   room Room @relation(fields: [roomId], references: [id], onDelete: Cascade)
 
   @@unique([userId, roomId, dayOfWeek, startTime, endTime, semester])
+  @@index([userId, semester, dayOfWeek, startTime, endTime])
+  @@index([userId, semester, subjectCode])
   @@map("class_schedules")
 }
 

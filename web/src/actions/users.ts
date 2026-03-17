@@ -196,6 +196,8 @@ export async function updateUserAction(userId: string, data: {
   password?: string;
   role?: Role;
   phone?: string;
+  studentId?: string;
+  studentIdOverrideReason?: string;
 }) {
   const session = await auth();
   if (!session || !isAdminRole(session.user.role)) {
@@ -254,6 +256,48 @@ export async function updateUserAction(userId: string, data: {
       updateData.hashedPassword = await hash(data.password, 12);
     }
 
+    const normalizedStudentId = data.studentId?.trim();
+    const overrideReason = data.studentIdOverrideReason?.trim();
+    const canDirectOverride = isSuperAdmin(session.user.role);
+
+    if (typeof normalizedStudentId === "string") {
+      if (normalizedStudentId && !/^\d{10}$/.test(normalizedStudentId)) {
+        return { error: "รหัสนักศึกษาต้องเป็นตัวเลข 10 หลัก" };
+      }
+
+      if (normalizedStudentId) {
+        const existingStudentId = await prisma.user.findFirst({
+          where: {
+            studentId: normalizedStudentId,
+            NOT: { id: userId },
+          },
+          select: { id: true },
+        });
+        if (existingStudentId) {
+          return { error: "รหัสนักศึกษานี้ถูกใช้งานแล้ว" };
+        }
+      }
+
+      const currentStudentId = await prisma.user.findUnique({
+        where: { id: userId },
+        select: { studentId: true },
+      });
+
+      const hasStudentIdChanged =
+        (currentStudentId?.studentId || "") !== (normalizedStudentId || "");
+
+      if (hasStudentIdChanged) {
+        if (!canDirectOverride && !overrideReason) {
+          return {
+            error:
+              "ADMIN แก้ไข Student ID ได้เฉพาะเคสแจ้งปัญหา กรุณาระบุเหตุผลการแก้ไข",
+          };
+        }
+
+        updateData.studentId = normalizedStudentId || null;
+      }
+    }
+
     await prisma.user.update({
       where: { id: userId },
       data: updateData,
@@ -263,7 +307,7 @@ export async function updateUserAction(userId: string, data: {
       data: {
         userId: session.user.id,
         action: "USER_UPDATED",
-        details: `Updated user: ${data.name || data.email || target.name || target.email}`,
+        details: `Updated user: ${data.name || data.email || target.name || target.email}${normalizedStudentId !== undefined ? ` | studentId=${normalizedStudentId || "null"}${overrideReason ? ` | reason=${overrideReason}` : ""}` : ""}`,
       },
     });
 
