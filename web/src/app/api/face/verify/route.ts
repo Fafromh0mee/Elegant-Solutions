@@ -3,7 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { checkInAction, checkOutAction } from "@/actions/sessions";
 
 const AI_SERVICE_URL = process.env.AI_SERVICE_URL || "http://localhost:8000";
-const FACE_THRESHOLD = parseFloat(process.env.FACE_THRESHOLD || "0.40");
+const FACE_THRESHOLD = parseFloat(process.env.FACE_THRESHOLD || "0.73");
 
 export async function POST(req: NextRequest) {
   try {
