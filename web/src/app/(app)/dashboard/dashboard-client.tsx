@@ -71,6 +71,17 @@ const dayLabel: Record<number, string> = {
   6: "Sat",
 };
 
+const ENABLE_GROUP_UI = false;
+
+function toDateTimeLocal(date: Date) {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, "0");
+  const d = String(date.getDate()).padStart(2, "0");
+  const hh = String(date.getHours()).padStart(2, "0");
+  const mm = String(date.getMinutes()).padStart(2, "0");
+  return `${y}-${m}-${d}T${hh}:${mm}`;
+}
+
 export function DashboardClient({ user }: { user: AuthUser }) {
   const minDateTime = new Date(Date.now() + 60_000).toISOString().slice(0, 16);
 
@@ -218,13 +229,6 @@ export function DashboardClient({ user }: { user: AuthUser }) {
     setMySchedules(scheduleRes.schedules as typeof mySchedules);
   }
 
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(() => {
-    loadData();
-    loadFaceStatus();
-    loadStudentMeta();
-  }, []);
-
   async function loadFaceStatus() {
     if (user.role === "GUEST") return;
     const res = await getFaceStatusAction();
@@ -233,6 +237,12 @@ export function DashboardClient({ user }: { user: AuthUser }) {
       setFaceEnrolledAt(new Date(res.faceProfile.createdAt));
     }
   }
+
+  useEffect(() => {
+    loadData();
+    loadFaceStatus();
+    loadStudentMeta();
+  }, []);
 
   function handleStudentIdSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -364,7 +374,7 @@ export function DashboardClient({ user }: { user: AuthUser }) {
     }
 
     if (start <= now) {
-      setError("เวลาเริ่มต้นต้องเป็นเวลาในอนาคต");
+      setError("เวลาลงทะเบียนต้องเป็นเวลาล่วงหน้าอย่างน้อย 1 นาที");
       return;
     }
 
@@ -445,7 +455,7 @@ export function DashboardClient({ user }: { user: AuthUser }) {
     }
 
     if (start <= now) {
-      setError("เวลาเริ่มต้นต้องเป็นเวลาในอนาคต");
+      setError("เวลาลงทะเบียนต้องเป็นเวลาล่วงหน้าอย่างน้อย 1 นาที");
       return;
     }
 
@@ -502,6 +512,22 @@ export function DashboardClient({ user }: { user: AuthUser }) {
     setViewQrDataUrl("");
   }
 
+  function openGenerateRequestModal() {
+    const now = new Date();
+    const start = new Date(now.getTime() + 5 * 60 * 1000);
+    const end = new Date(start.getTime() + 60 * 60 * 1000);
+
+    setShowGenerateQR(true);
+    setShowGroupQR(false);
+    setSelectedBuilding("");
+    setSelectedFloor("");
+    setSelectedRoom("");
+    setQrDataUrl("");
+    setGeneratedToken("");
+    setValidFrom(toDateTimeLocal(start));
+    setValidTo(toDateTimeLocal(end));
+  }
+
   return (
     <div>
       {/* Welcome */}
@@ -519,6 +545,27 @@ export function DashboardClient({ user }: { user: AuthUser }) {
             {user.role}
           </span>
         </p>
+      </div>
+
+      <div className="mb-6 rounded-2xl border border-(--color-secondary)/20 bg-linear-to-r from-(--color-secondary)/8 to-white p-4 sm:p-5">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p className="text-sm font-semibold text-gray-900">
+              พร้อมเข้าห้องแล้วใช่ไหม?
+            </p>
+            <p className="text-sm text-gray-600">
+              กดครั้งเดียวเพื่อสร้างคำขอเข้าใช้ห้อง
+              พร้อมกำหนดเวลาเริ่มต้นให้อัตโนมัติ
+            </p>
+          </div>
+          <button
+            onClick={openGenerateRequestModal}
+            className="btn-primary whitespace-nowrap"
+          >
+            <QrCode className="h-4 w-4" />
+            ขอเข้าใช้ห้องทันที
+          </button>
+        </div>
       </div>
 
       {user.role === "STUDENT" && !studentId && (
@@ -599,41 +646,86 @@ export function DashboardClient({ user }: { user: AuthUser }) {
               ยังไม่มีข้อมูลตารางเรียนของคุณในระบบ
             </p>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b text-left text-gray-500">
-                    <th className="pb-2 pr-3">วัน</th>
-                    <th className="pb-2 pr-3">เวลา</th>
-                    <th className="pb-2 pr-3">วิชา</th>
-                    <th className="pb-2 pr-3">Section</th>
-                    <th className="pb-2 pr-3">ห้อง</th>
-                    <th className="pb-2">เทอม</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {mySchedules.map((schedule) => (
-                    <tr key={schedule.id} className="border-b last:border-0">
-                      <td className="py-2 pr-3 font-medium">
-                        {dayLabel[schedule.dayOfWeek] ?? schedule.dayOfWeek}
-                      </td>
-                      <td className="py-2 pr-3">
-                        {schedule.startTime} - {schedule.endTime}
-                      </td>
-                      <td className="py-2 pr-3">
+            <>
+              <div className="space-y-3 md:hidden">
+                {mySchedules.map((schedule) => (
+                  <div
+                    key={schedule.id}
+                    className="rounded-xl border border-gray-200 bg-white p-3"
+                  >
+                    <div className="mb-2 flex items-start justify-between gap-2">
+                      <p className="text-sm font-semibold text-gray-900">
                         {schedule.subjectCode ?? "-"}
-                        {schedule.subjectName
-                          ? ` | ${schedule.subjectName}`
-                          : ""}
-                      </td>
-                      <td className="py-2 pr-3">{schedule.section ?? "-"}</td>
-                      <td className="py-2 pr-3">{schedule.room.roomCode}</td>
-                      <td className="py-2">{schedule.semester ?? "-"}</td>
+                      </p>
+                      <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600">
+                        {dayLabel[schedule.dayOfWeek] ?? schedule.dayOfWeek}
+                      </span>
+                    </div>
+                    {schedule.subjectName && (
+                      <p className="mb-2 text-xs text-gray-500">
+                        {schedule.subjectName}
+                      </p>
+                    )}
+                    <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-sm">
+                      <p className="text-gray-700">
+                        <span className="font-medium text-gray-900">เวลา:</span>{" "}
+                        {schedule.startTime} - {schedule.endTime}
+                      </p>
+                      <p className="text-gray-700">
+                        <span className="font-medium text-gray-900">
+                          Section:
+                        </span>{" "}
+                        {schedule.section ?? "-"}
+                      </p>
+                      <p className="text-gray-700">
+                        <span className="font-medium text-gray-900">ห้อง:</span>{" "}
+                        {schedule.room.roomCode}
+                      </p>
+                      <p className="text-gray-700">
+                        <span className="font-medium text-gray-900">เทอม:</span>{" "}
+                        {schedule.semester ?? "-"}
+                      </p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <div className="hidden overflow-x-auto md:block">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b text-left text-gray-500">
+                      <th className="pb-2 pr-3">วัน</th>
+                      <th className="pb-2 pr-3">เวลา</th>
+                      <th className="pb-2 pr-3">วิชา</th>
+                      <th className="pb-2 pr-3">Section</th>
+                      <th className="pb-2 pr-3">ห้อง</th>
+                      <th className="pb-2">เทอม</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                  </thead>
+                  <tbody>
+                    {mySchedules.map((schedule) => (
+                      <tr key={schedule.id} className="border-b last:border-0">
+                        <td className="py-2 pr-3 font-medium">
+                          {dayLabel[schedule.dayOfWeek] ?? schedule.dayOfWeek}
+                        </td>
+                        <td className="py-2 pr-3">
+                          {schedule.startTime} - {schedule.endTime}
+                        </td>
+                        <td className="py-2 pr-3">
+                          {schedule.subjectCode ?? "-"}
+                          {schedule.subjectName
+                            ? ` | ${schedule.subjectName}`
+                            : ""}
+                        </td>
+                        <td className="py-2 pr-3">{schedule.section ?? "-"}</td>
+                        <td className="py-2 pr-3">{schedule.room.roomCode}</td>
+                        <td className="py-2">{schedule.semester ?? "-"}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </>
           )}
         </div>
       )}
@@ -820,47 +912,45 @@ export function DashboardClient({ user }: { user: AuthUser }) {
       )}
 
       {/* Quick Actions */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+      <div
+        className={`grid grid-cols-1 ${ENABLE_GROUP_UI ? "md:grid-cols-3" : "md:grid-cols-1"} gap-4 mb-8`}
+      >
         <button
-          onClick={() => {
-            setShowGenerateQR(true);
-            setShowGroupQR(false);
-            setSelectedBuilding("");
-            setSelectedFloor("");
-            setSelectedRoom("");
-            setQrDataUrl("");
-            setGeneratedToken("");
-          }}
-          className="card hover:shadow-md transition-shadow text-left"
+          onClick={openGenerateRequestModal}
+          className={`card text-left hover:shadow-md transition-shadow ${!ENABLE_GROUP_UI ? "px-4 py-4 sm:max-w-xl" : ""}`}
         >
-          <QrCode className="h-8 w-8 text-(--color-secondary) mb-3" />
+          <QrCode className="mb-2 h-6 w-6 text-(--color-secondary)" />
           <h3 className="font-semibold">ขอเข้าใช้ห้อง</h3>
           <p className="text-sm text-gray-500 mt-1">
-            สร้าง QR Code สำหรับเข้าห้อง
+            สร้าง QR สำหรับยืนยันสิทธิ์หน้าเครื่องประตู
           </p>
         </button>
 
-        <button
-          onClick={() => setShowCreateGroup(true)}
-          className="card hover:shadow-md transition-shadow text-left"
-        >
-          <Users className="h-8 w-8 text-green-600 mb-3" />
-          <h3 className="font-semibold">สร้างกลุ่ม</h3>
-          <p className="text-sm text-gray-500 mt-1">
-            สร้างกลุ่มสำหรับเข้าห้องพร้อมกัน
-          </p>
-        </button>
+        {ENABLE_GROUP_UI && (
+          <>
+            <button
+              onClick={() => setShowCreateGroup(true)}
+              className="card hover:shadow-md transition-shadow text-left"
+            >
+              <Users className="h-8 w-8 text-green-600 mb-3" />
+              <h3 className="font-semibold">สร้างกลุ่ม</h3>
+              <p className="text-sm text-gray-500 mt-1">
+                สร้างกลุ่มสำหรับเข้าห้องพร้อมกัน
+              </p>
+            </button>
 
-        <button
-          onClick={() => setShowJoinGroup(true)}
-          className="card hover:shadow-md transition-shadow text-left"
-        >
-          <Plus className="h-8 w-8 text-purple-600 mb-3" />
-          <h3 className="font-semibold">เข้าร่วมกลุ่ม</h3>
-          <p className="text-sm text-gray-500 mt-1">
-            ใช้ code เพื่อเข้าร่วมกลุ่ม
-          </p>
-        </button>
+            <button
+              onClick={() => setShowJoinGroup(true)}
+              className="card hover:shadow-md transition-shadow text-left"
+            >
+              <Plus className="h-8 w-8 text-purple-600 mb-3" />
+              <h3 className="font-semibold">เข้าร่วมกลุ่ม</h3>
+              <p className="text-sm text-gray-500 mt-1">
+                ใช้ code เพื่อเข้าร่วมกลุ่ม
+              </p>
+            </button>
+          </>
+        )}
       </div>
 
       {/* Generate QR Modal */}
@@ -869,7 +959,7 @@ export function DashboardClient({ user }: { user: AuthUser }) {
           <div className="flex justify-between items-center mb-4">
             <h2 className="text-lg font-semibold">
               <QrCode className="inline h-5 w-5 mr-2" />
-              ขอเข้าใช้ห้อง (Individual QR)
+              ขอเข้าใช้ห้อง
             </h2>
             <button
               onClick={() => setShowGenerateQR(false)}
@@ -996,6 +1086,10 @@ export function DashboardClient({ user }: { user: AuthUser }) {
                   />
                 </div>
               </div>
+              <p className="text-xs text-gray-500">
+                แนะนำ: ระบบตั้งค่าเริ่มในอีก 5 นาที และสิ้นสุด 1
+                ชั่วโมงให้อัตโนมัติ (ปรับเองได้)
+              </p>
               <button
                 type="submit"
                 className="btn-primary w-full"
@@ -1009,7 +1103,7 @@ export function DashboardClient({ user }: { user: AuthUser }) {
       )}
 
       {/* Create Group Modal */}
-      {showCreateGroup && (
+      {ENABLE_GROUP_UI && showCreateGroup && (
         <div className="card mb-8">
           <div className="flex justify-between items-center mb-4">
             <h2 className="text-lg font-semibold">สร้างกลุ่ม</h2>
@@ -1044,7 +1138,7 @@ export function DashboardClient({ user }: { user: AuthUser }) {
       )}
 
       {/* Join Group Modal */}
-      {showJoinGroup && (
+      {ENABLE_GROUP_UI && showJoinGroup && (
         <div className="card mb-8">
           <div className="flex justify-between items-center mb-4">
             <h2 className="text-lg font-semibold">เข้าร่วมกลุ่ม</h2>
@@ -1079,7 +1173,7 @@ export function DashboardClient({ user }: { user: AuthUser }) {
       )}
 
       {/* My Groups */}
-      {groups.length > 0 && (
+      {ENABLE_GROUP_UI && groups.length > 0 && (
         <div className="mb-8">
           <h2 className="text-lg font-semibold mb-4">กลุ่มของฉัน</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -1130,7 +1224,7 @@ export function DashboardClient({ user }: { user: AuthUser }) {
       )}
 
       {/* Generate Group QR Modal */}
-      {showGroupQR && (
+      {ENABLE_GROUP_UI && showGroupQR && (
         <div className="card mb-8">
           <div className="flex justify-between items-center mb-4">
             <h2 className="text-lg font-semibold">

@@ -481,6 +481,7 @@ export async function getMyClassSchedulesAction() {
       dayOfWeek: true,
       startTime: true,
       endTime: true,
+      section: true,
       subjectName: true,
       subjectCode: true,
       semester: true,
