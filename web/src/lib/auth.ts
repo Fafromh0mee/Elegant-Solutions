@@ -10,6 +10,7 @@ declare module "next-auth" {
   interface User {
     role: Role;
     status: AccountStatus;
+    studentId?: string | null;
   }
   interface Session {
     user: {
@@ -18,6 +19,7 @@ declare module "next-auth" {
       name: string;
       role: Role;
       status: AccountStatus;
+      studentId?: string | null;
       image?: string | null;
     };
   }
@@ -27,6 +29,7 @@ type SessionToken = {
   id?: string;
   role?: Role;
   status?: AccountStatus;
+  studentId?: string | null;
 };
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
@@ -67,6 +70,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
           name: user.name,
           role: user.role,
           status: user.status,
+          studentId: user.studentId,
         };
       },
     }),
@@ -116,6 +120,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         user.id = created.id;
         user.role = created.role;
         user.status = created.status;
+        user.studentId = null;
         return true;
       }
 
@@ -144,6 +149,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       user.id = updated.id;
       user.role = updated.role;
       user.status = updated.status;
+      user.studentId = existing.studentId;
       return true;
     },
     async jwt({ token, user }) {
@@ -152,6 +158,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         sessionToken.id = user.id as string;
         sessionToken.role = (user as { role: Role }).role;
         sessionToken.status = (user as { status: AccountStatus }).status;
+        sessionToken.studentId = (user as { studentId?: string | null }).studentId ?? null;
       }
       return token;
     },
@@ -161,6 +168,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         session.user.id = sessionToken.id as string;
         session.user.role = sessionToken.role as Role;
         session.user.status = sessionToken.status as AccountStatus;
+        session.user.studentId = sessionToken.studentId ?? null;
       }
       return session;
     },

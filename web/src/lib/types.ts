@@ -7,5 +7,6 @@ export interface AuthUser {
   name: string;
   role: Role;
   status: AccountStatus;
+  studentId?: string | null;
   image?: string | null;
 }

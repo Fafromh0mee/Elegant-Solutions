@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import Image from "next/image";
 import {
   QrCode,
@@ -31,6 +31,11 @@ import {
   generateGroupTokenAction,
 } from "@/actions/groups";
 import { getFaceStatusAction, deleteFaceProfileAction } from "@/actions/face";
+import {
+  getProfileAction,
+  setStudentIdFirstLoginAction,
+} from "@/actions/profile";
+import { getMyClassSchedulesAction } from "@/actions/class-schedules";
 import type { AuthUser } from "@/lib/types";
 import QRCode from "qrcode";
 
@@ -41,6 +46,40 @@ interface Room {
   description: string | null;
   capacity: number;
   guestAccess: boolean;
+}
+
+function parseRoomCode(roomCode: string): { building: string; floor: string } {
+  const normalized = roomCode.trim().toUpperCase();
+  const match = normalized.match(/^([A-Z]\d)-([1-9])\d{2}$/);
+  if (!match) {
+    return { building: "OTHER", floor: "OTHER" };
+  }
+
+  return {
+    building: match[1],
+    floor: match[2],
+  };
+}
+
+const dayLabel: Record<number, string> = {
+  0: "Sun",
+  1: "Mon",
+  2: "Tue",
+  3: "Wed",
+  4: "Thu",
+  5: "Fri",
+  6: "Sat",
+};
+
+const ENABLE_GROUP_UI = false;
+
+function toDateTimeLocal(date: Date) {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, "0");
+  const d = String(date.getDate()).padStart(2, "0");
+  const hh = String(date.getHours()).padStart(2, "0");
+  const mm = String(date.getMinutes()).padStart(2, "0");
+  return `${y}-${m}-${d}T${hh}:${mm}`;
 }
 
 export function DashboardClient({ user }: { user: AuthUser }) {
@@ -76,6 +115,8 @@ export function DashboardClient({ user }: { user: AuthUser }) {
 
   // Form states
   const [selectedRoom, setSelectedRoom] = useState("");
+  const [selectedBuilding, setSelectedBuilding] = useState("");
+  const [selectedFloor, setSelectedFloor] = useState("");
   const [validFrom, setValidFrom] = useState("");
   const [validTo, setValidTo] = useState("");
   const [groupName, setGroupName] = useState("");
@@ -111,6 +152,60 @@ export function DashboardClient({ user }: { user: AuthUser }) {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
 
+  const [studentId, setStudentId] = useState<string | null>(
+    user.studentId ?? null,
+  );
+  const [studentIdInput, setStudentIdInput] = useState("");
+  const [pendingStudentId, setPendingStudentId] = useState("");
+  const [showStudentIdConfirm, setShowStudentIdConfirm] = useState(false);
+  const [mySchedules, setMySchedules] = useState<
+    Array<{
+      id: string;
+      dayOfWeek: number;
+      startTime: string;
+      endTime: string;
+      section: string | null;
+      subjectName: string | null;
+      subjectCode: string | null;
+      semester: string | null;
+      room: { roomCode: string; name: string };
+    }>
+  >([]);
+
+  const buildingOptions = useMemo(() => {
+    const set = new Set<string>();
+    rooms.forEach((room) => {
+      set.add(parseRoomCode(room.roomCode).building);
+    });
+    return [...set].sort((a, b) => a.localeCompare(b));
+  }, [rooms]);
+
+  const floorOptions = useMemo(() => {
+    if (!selectedBuilding) return [];
+    const set = new Set<string>();
+    rooms.forEach((room) => {
+      const parsed = parseRoomCode(room.roomCode);
+      if (parsed.building === selectedBuilding) {
+        set.add(parsed.floor);
+      }
+    });
+    return [...set].sort((a, b) =>
+      a.localeCompare(b, undefined, { numeric: true }),
+    );
+  }, [rooms, selectedBuilding]);
+
+  const filteredRooms = useMemo(() => {
+    if (!selectedBuilding || !selectedFloor) return [];
+    return rooms
+      .filter((room) => {
+        const parsed = parseRoomCode(room.roomCode);
+        return (
+          parsed.building === selectedBuilding && parsed.floor === selectedFloor
+        );
+      })
+      .sort((a, b) => a.roomCode.localeCompare(b.roomCode));
+  }, [rooms, selectedBuilding, selectedFloor]);
+
   async function loadData() {
     const [roomsRes, tokensRes, groupsRes] = await Promise.all([
       getAvailableRoomsAction(),
@@ -122,11 +217,17 @@ export function DashboardClient({ user }: { user: AuthUser }) {
     setGroups(groupsRes.groups as typeof groups);
   }
 
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(() => {
-    loadData();
-    loadFaceStatus();
-  }, []);
+  async function loadStudentMeta() {
+    if (user.role !== "STUDENT") return;
+
+    const profileRes = await getProfileAction();
+    if (profileRes.user) {
+      setStudentId(profileRes.user.studentId || null);
+    }
+
+    const scheduleRes = await getMyClassSchedulesAction();
+    setMySchedules(scheduleRes.schedules as typeof mySchedules);
+  }
 
   async function loadFaceStatus() {
     if (user.role === "GUEST") return;
@@ -135,6 +236,49 @@ export function DashboardClient({ user }: { user: AuthUser }) {
     if (res.faceProfile?.createdAt) {
       setFaceEnrolledAt(new Date(res.faceProfile.createdAt));
     }
+  }
+
+  useEffect(() => {
+    loadData();
+    loadFaceStatus();
+    loadStudentMeta();
+  }, []);
+
+  function handleStudentIdSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setError("");
+
+    const normalized = studentIdInput.trim();
+    if (!/^\d{10}$/.test(normalized)) {
+      setError("รหัสนักศึกษาต้องเป็นตัวเลข 10 หลัก");
+      return;
+    }
+
+    setPendingStudentId(normalized);
+    setShowStudentIdConfirm(true);
+  }
+
+  async function handleConfirmStudentId() {
+    if (!pendingStudentId) return;
+
+    setLoading(true);
+    setError("");
+    const result = await setStudentIdFirstLoginAction({
+      studentId: pendingStudentId,
+    });
+    setLoading(false);
+
+    if (result.error) {
+      setError(result.error);
+      return;
+    }
+
+    setStudentId(pendingStudentId);
+    setStudentIdInput("");
+    setPendingStudentId("");
+    setShowStudentIdConfirm(false);
+    setSuccess("บันทึกรหัสนักศึกษาเรียบร้อยแล้ว");
+    loadStudentMeta();
   }
 
   async function startFaceCamera() {
@@ -230,7 +374,7 @@ export function DashboardClient({ user }: { user: AuthUser }) {
     }
 
     if (start <= now) {
-      setError("เวลาเริ่มต้นต้องเป็นเวลาในอนาคต");
+      setError("เวลาลงทะเบียนต้องเป็นเวลาล่วงหน้าอย่างน้อย 1 นาที");
       return;
     }
 
@@ -311,7 +455,7 @@ export function DashboardClient({ user }: { user: AuthUser }) {
     }
 
     if (start <= now) {
-      setError("เวลาเริ่มต้นต้องเป็นเวลาในอนาคต");
+      setError("เวลาลงทะเบียนต้องเป็นเวลาล่วงหน้าอย่างน้อย 1 นาที");
       return;
     }
 
@@ -368,6 +512,22 @@ export function DashboardClient({ user }: { user: AuthUser }) {
     setViewQrDataUrl("");
   }
 
+  function openGenerateRequestModal() {
+    const now = new Date();
+    const start = new Date(now.getTime() + 5 * 60 * 1000);
+    const end = new Date(start.getTime() + 60 * 60 * 1000);
+
+    setShowGenerateQR(true);
+    setShowGroupQR(false);
+    setSelectedBuilding("");
+    setSelectedFloor("");
+    setSelectedRoom("");
+    setQrDataUrl("");
+    setGeneratedToken("");
+    setValidFrom(toDateTimeLocal(start));
+    setValidTo(toDateTimeLocal(end));
+  }
+
   return (
     <div>
       {/* Welcome */}
@@ -386,6 +546,189 @@ export function DashboardClient({ user }: { user: AuthUser }) {
           </span>
         </p>
       </div>
+
+      <div className="mb-6 rounded-2xl border border-(--color-secondary)/20 bg-linear-to-r from-(--color-secondary)/8 to-white p-4 sm:p-5">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p className="text-sm font-semibold text-gray-900">
+              พร้อมเข้าห้องแล้วใช่ไหม?
+            </p>
+            <p className="text-sm text-gray-600">
+              กดครั้งเดียวเพื่อสร้างคำขอเข้าใช้ห้อง
+              พร้อมกำหนดเวลาเริ่มต้นให้อัตโนมัติ
+            </p>
+          </div>
+          <button
+            onClick={openGenerateRequestModal}
+            className="btn-primary whitespace-nowrap"
+          >
+            <QrCode className="h-4 w-4" />
+            ขอเข้าใช้ห้องทันที
+          </button>
+        </div>
+      </div>
+
+      {user.role === "STUDENT" && !studentId && (
+        <div className="mb-6 rounded-xl border border-amber-200 bg-amber-50 p-4">
+          <p className="text-sm font-semibold text-amber-900">
+            เชื่อมต่อบัญชีกับตารางเรียนของคุณ
+          </p>
+          <p className="mt-1 text-sm text-amber-800">
+            กรุณากรอกรหัสนักศึกษา 10
+            หลักครั้งแรกเพื่อเปิดใช้งานสิทธิ์เข้าห้องตามตารางเรียน
+            หากกรอกผิดหรือรหัสซ้ำ กรุณาติดต่อแอดมิน
+          </p>
+          <form
+            onSubmit={handleStudentIdSubmit}
+            className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center"
+          >
+            <input
+              type="text"
+              className="input sm:max-w-xs"
+              placeholder="กรอกรหัสนักศึกษา 10 หลัก"
+              value={studentIdInput}
+              onChange={(e) =>
+                setStudentIdInput(
+                  e.target.value.replace(/\D/g, "").slice(0, 10),
+                )
+              }
+              inputMode="numeric"
+              maxLength={10}
+              required
+            />
+            <button type="submit" className="btn-primary" disabled={loading}>
+              ยืนยันรหัสนักศึกษา
+            </button>
+          </form>
+        </div>
+      )}
+
+      {showStudentIdConfirm && (
+        <div className="mb-6 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+          <p className="text-sm font-semibold text-gray-900">
+            ยืนยันอีกครั้ง: รหัสนักศึกษา {pendingStudentId} ถูกต้องใช่ไหม
+          </p>
+          <p className="mt-1 text-sm text-gray-600">
+            บันทึกแล้วจะไม่สามารถแก้ไขเองได้ หากผิดกรุณาติดต่อแอดมิน
+          </p>
+          <div className="mt-3 flex gap-2">
+            <button
+              type="button"
+              className="btn-primary"
+              disabled={loading}
+              onClick={handleConfirmStudentId}
+            >
+              {loading ? "กำลังบันทึก..." : "ยืนยันและบันทึก"}
+            </button>
+            <button
+              type="button"
+              className="btn-secondary"
+              onClick={() => {
+                setShowStudentIdConfirm(false);
+                setPendingStudentId("");
+              }}
+            >
+              ย้อนกลับ
+            </button>
+          </div>
+        </div>
+      )}
+
+      {user.role === "STUDENT" && studentId && (
+        <div className="card mb-8">
+          <div className="mb-4 flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+            <h2 className="text-lg font-semibold">ตารางเรียนของฉัน</h2>
+            <p className="text-xs text-gray-500">Student ID: {studentId}</p>
+          </div>
+
+          {mySchedules.length === 0 ? (
+            <p className="text-sm text-gray-500">
+              ยังไม่มีข้อมูลตารางเรียนของคุณในระบบ
+            </p>
+          ) : (
+            <>
+              <div className="space-y-3 md:hidden">
+                {mySchedules.map((schedule) => (
+                  <div
+                    key={schedule.id}
+                    className="rounded-xl border border-gray-200 bg-white p-3"
+                  >
+                    <div className="mb-2 flex items-start justify-between gap-2">
+                      <p className="text-sm font-semibold text-gray-900">
+                        {schedule.subjectCode ?? "-"}
+                      </p>
+                      <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600">
+                        {dayLabel[schedule.dayOfWeek] ?? schedule.dayOfWeek}
+                      </span>
+                    </div>
+                    {schedule.subjectName && (
+                      <p className="mb-2 text-xs text-gray-500">
+                        {schedule.subjectName}
+                      </p>
+                    )}
+                    <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-sm">
+                      <p className="text-gray-700">
+                        <span className="font-medium text-gray-900">เวลา:</span>{" "}
+                        {schedule.startTime} - {schedule.endTime}
+                      </p>
+                      <p className="text-gray-700">
+                        <span className="font-medium text-gray-900">
+                          Section:
+                        </span>{" "}
+                        {schedule.section ?? "-"}
+                      </p>
+                      <p className="text-gray-700">
+                        <span className="font-medium text-gray-900">ห้อง:</span>{" "}
+                        {schedule.room.roomCode}
+                      </p>
+                      <p className="text-gray-700">
+                        <span className="font-medium text-gray-900">เทอม:</span>{" "}
+                        {schedule.semester ?? "-"}
+                      </p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <div className="hidden overflow-x-auto md:block">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b text-left text-gray-500">
+                      <th className="pb-2 pr-3">วัน</th>
+                      <th className="pb-2 pr-3">เวลา</th>
+                      <th className="pb-2 pr-3">วิชา</th>
+                      <th className="pb-2 pr-3">Section</th>
+                      <th className="pb-2 pr-3">ห้อง</th>
+                      <th className="pb-2">เทอม</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {mySchedules.map((schedule) => (
+                      <tr key={schedule.id} className="border-b last:border-0">
+                        <td className="py-2 pr-3 font-medium">
+                          {dayLabel[schedule.dayOfWeek] ?? schedule.dayOfWeek}
+                        </td>
+                        <td className="py-2 pr-3">
+                          {schedule.startTime} - {schedule.endTime}
+                        </td>
+                        <td className="py-2 pr-3">
+                          {schedule.subjectCode ?? "-"}
+                          {schedule.subjectName
+                            ? ` | ${schedule.subjectName}`
+                            : ""}
+                        </td>
+                        <td className="py-2 pr-3">{schedule.section ?? "-"}</td>
+                        <td className="py-2 pr-3">{schedule.room.roomCode}</td>
+                        <td className="py-2">{schedule.semester ?? "-"}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </>
+          )}
+        </div>
+      )}
 
       {/* Alerts */}
       {error && (
@@ -569,44 +912,45 @@ export function DashboardClient({ user }: { user: AuthUser }) {
       )}
 
       {/* Quick Actions */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+      <div
+        className={`grid grid-cols-1 ${ENABLE_GROUP_UI ? "md:grid-cols-3" : "md:grid-cols-1"} gap-4 mb-8`}
+      >
         <button
-          onClick={() => {
-            setShowGenerateQR(true);
-            setShowGroupQR(false);
-            setQrDataUrl("");
-            setGeneratedToken("");
-          }}
-          className="card hover:shadow-md transition-shadow text-left"
+          onClick={openGenerateRequestModal}
+          className={`card text-left hover:shadow-md transition-shadow ${!ENABLE_GROUP_UI ? "px-4 py-4 sm:max-w-xl" : ""}`}
         >
-          <QrCode className="h-8 w-8 text-(--color-secondary) mb-3" />
+          <QrCode className="mb-2 h-6 w-6 text-(--color-secondary)" />
           <h3 className="font-semibold">ขอเข้าใช้ห้อง</h3>
           <p className="text-sm text-gray-500 mt-1">
-            สร้าง QR Code สำหรับเข้าห้อง
+            สร้าง QR สำหรับยืนยันสิทธิ์หน้าเครื่องประตู
           </p>
         </button>
 
-        <button
-          onClick={() => setShowCreateGroup(true)}
-          className="card hover:shadow-md transition-shadow text-left"
-        >
-          <Users className="h-8 w-8 text-green-600 mb-3" />
-          <h3 className="font-semibold">สร้างกลุ่ม</h3>
-          <p className="text-sm text-gray-500 mt-1">
-            สร้างกลุ่มสำหรับเข้าห้องพร้อมกัน
-          </p>
-        </button>
+        {ENABLE_GROUP_UI && (
+          <>
+            <button
+              onClick={() => setShowCreateGroup(true)}
+              className="card hover:shadow-md transition-shadow text-left"
+            >
+              <Users className="h-8 w-8 text-green-600 mb-3" />
+              <h3 className="font-semibold">สร้างกลุ่ม</h3>
+              <p className="text-sm text-gray-500 mt-1">
+                สร้างกลุ่มสำหรับเข้าห้องพร้อมกัน
+              </p>
+            </button>
 
-        <button
-          onClick={() => setShowJoinGroup(true)}
-          className="card hover:shadow-md transition-shadow text-left"
-        >
-          <Plus className="h-8 w-8 text-purple-600 mb-3" />
-          <h3 className="font-semibold">เข้าร่วมกลุ่ม</h3>
-          <p className="text-sm text-gray-500 mt-1">
-            ใช้ code เพื่อเข้าร่วมกลุ่ม
-          </p>
-        </button>
+            <button
+              onClick={() => setShowJoinGroup(true)}
+              className="card hover:shadow-md transition-shadow text-left"
+            >
+              <Plus className="h-8 w-8 text-purple-600 mb-3" />
+              <h3 className="font-semibold">เข้าร่วมกลุ่ม</h3>
+              <p className="text-sm text-gray-500 mt-1">
+                ใช้ code เพื่อเข้าร่วมกลุ่ม
+              </p>
+            </button>
+          </>
+        )}
       </div>
 
       {/* Generate QR Modal */}
@@ -615,7 +959,7 @@ export function DashboardClient({ user }: { user: AuthUser }) {
           <div className="flex justify-between items-center mb-4">
             <h2 className="text-lg font-semibold">
               <QrCode className="inline h-5 w-5 mr-2" />
-              ขอเข้าใช้ห้อง (Individual QR)
+              ขอเข้าใช้ห้อง
             </h2>
             <button
               onClick={() => setShowGenerateQR(false)}
@@ -662,15 +1006,56 @@ export function DashboardClient({ user }: { user: AuthUser }) {
           ) : (
             <form onSubmit={handleGenerateQR} className="space-y-4">
               <div>
+                <label className="label">เลือกอาคาร</label>
+                <select
+                  className="input"
+                  value={selectedBuilding}
+                  onChange={(e) => {
+                    setSelectedBuilding(e.target.value);
+                    setSelectedFloor("");
+                    setSelectedRoom("");
+                  }}
+                  required
+                >
+                  <option value="">-- เลือกอาคาร --</option>
+                  {buildingOptions.map((building) => (
+                    <option key={building} value={building}>
+                      {building}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="label">เลือกชั้น</label>
+                <select
+                  className="input"
+                  value={selectedFloor}
+                  onChange={(e) => {
+                    setSelectedFloor(e.target.value);
+                    setSelectedRoom("");
+                  }}
+                  disabled={!selectedBuilding}
+                  required
+                >
+                  <option value="">-- เลือกชั้น --</option>
+                  {floorOptions.map((floor) => (
+                    <option key={floor} value={floor}>
+                      {floor === "OTHER" ? "OTHER" : `ชั้น ${floor}`}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
                 <label className="label">เลือกห้อง</label>
                 <select
                   className="input"
                   value={selectedRoom}
                   onChange={(e) => setSelectedRoom(e.target.value)}
+                  disabled={!selectedFloor}
                   required
                 >
                   <option value="">-- เลือกห้อง --</option>
-                  {rooms.map((room) => (
+                  {filteredRooms.map((room) => (
                     <option key={room.id} value={room.id}>
                       {room.name} ({room.roomCode})
                     </option>
@@ -701,6 +1086,10 @@ export function DashboardClient({ user }: { user: AuthUser }) {
                   />
                 </div>
               </div>
+              <p className="text-xs text-gray-500">
+                แนะนำ: ระบบตั้งค่าเริ่มในอีก 5 นาที และสิ้นสุด 1
+                ชั่วโมงให้อัตโนมัติ (ปรับเองได้)
+              </p>
               <button
                 type="submit"
                 className="btn-primary w-full"
@@ -714,7 +1103,7 @@ export function DashboardClient({ user }: { user: AuthUser }) {
       )}
 
       {/* Create Group Modal */}
-      {showCreateGroup && (
+      {ENABLE_GROUP_UI && showCreateGroup && (
         <div className="card mb-8">
           <div className="flex justify-between items-center mb-4">
             <h2 className="text-lg font-semibold">สร้างกลุ่ม</h2>
@@ -749,7 +1138,7 @@ export function DashboardClient({ user }: { user: AuthUser }) {
       )}
 
       {/* Join Group Modal */}
-      {showJoinGroup && (
+      {ENABLE_GROUP_UI && showJoinGroup && (
         <div className="card mb-8">
           <div className="flex justify-between items-center mb-4">
             <h2 className="text-lg font-semibold">เข้าร่วมกลุ่ม</h2>
@@ -784,7 +1173,7 @@ export function DashboardClient({ user }: { user: AuthUser }) {
       )}
 
       {/* My Groups */}
-      {groups.length > 0 && (
+      {ENABLE_GROUP_UI && groups.length > 0 && (
         <div className="mb-8">
           <h2 className="text-lg font-semibold mb-4">กลุ่มของฉัน</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -816,6 +1205,9 @@ export function DashboardClient({ user }: { user: AuthUser }) {
                       setSelectedGroup(group.id);
                       setShowGroupQR(true);
                       setShowGenerateQR(false);
+                      setSelectedBuilding("");
+                      setSelectedFloor("");
+                      setSelectedRoom("");
                       setQrDataUrl("");
                       setGeneratedToken("");
                     }}
@@ -832,7 +1224,7 @@ export function DashboardClient({ user }: { user: AuthUser }) {
       )}
 
       {/* Generate Group QR Modal */}
-      {showGroupQR && (
+      {ENABLE_GROUP_UI && showGroupQR && (
         <div className="card mb-8">
           <div className="flex justify-between items-center mb-4">
             <h2 className="text-lg font-semibold">
@@ -875,15 +1267,56 @@ export function DashboardClient({ user }: { user: AuthUser }) {
           ) : (
             <form onSubmit={handleGenerateGroupQR} className="space-y-4">
               <div>
+                <label className="label">เลือกอาคาร</label>
+                <select
+                  className="input"
+                  value={selectedBuilding}
+                  onChange={(e) => {
+                    setSelectedBuilding(e.target.value);
+                    setSelectedFloor("");
+                    setSelectedRoom("");
+                  }}
+                  required
+                >
+                  <option value="">-- เลือกอาคาร --</option>
+                  {buildingOptions.map((building) => (
+                    <option key={building} value={building}>
+                      {building}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="label">เลือกชั้น</label>
+                <select
+                  className="input"
+                  value={selectedFloor}
+                  onChange={(e) => {
+                    setSelectedFloor(e.target.value);
+                    setSelectedRoom("");
+                  }}
+                  disabled={!selectedBuilding}
+                  required
+                >
+                  <option value="">-- เลือกชั้น --</option>
+                  {floorOptions.map((floor) => (
+                    <option key={floor} value={floor}>
+                      {floor === "OTHER" ? "OTHER" : `ชั้น ${floor}`}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
                 <label className="label">เลือกห้อง</label>
                 <select
                   className="input"
                   value={selectedRoom}
                   onChange={(e) => setSelectedRoom(e.target.value)}
+                  disabled={!selectedFloor}
                   required
                 >
                   <option value="">-- เลือกห้อง --</option>
-                  {rooms.map((room) => (
+                  {filteredRooms.map((room) => (
                     <option key={room.id} value={room.id}>
                       {room.name} ({room.roomCode})
                     </option>

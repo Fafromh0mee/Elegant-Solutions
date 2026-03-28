@@ -5,6 +5,14 @@ import { checkInAction, checkOutAction } from "@/actions/sessions";
 const AI_SERVICE_URL = process.env.AI_SERVICE_URL || "http://localhost:8000";
 const FACE_THRESHOLD = parseFloat(process.env.FACE_THRESHOLD || "0.73");
 
+function getCurrentDayAndTime() {
+  const now = new Date();
+  const dayOfWeek = now.getDay();
+  const hh = String(now.getHours()).padStart(2, "0");
+  const mm = String(now.getMinutes()).padStart(2, "0");
+  return { dayOfWeek, currentTime: `${hh}:${mm}` };
+}
+
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
@@ -74,11 +82,14 @@ export async function POST(req: NextRequest) {
       });
     } catch (err) {
       console.error("[VERIFY] Fetch failed:", err);
-      return NextResponse.json({
-        matched: false,
-        face_detected: false,
-        message: "ไม่สามารถเชื่อมต่อ AI Service ได้",
-      });
+      return NextResponse.json(
+        {
+          matched: false,
+          face_detected: false,
+          message: "ไม่สามารถเชื่อมต่อ AI Service ได้",
+        },
+        { status: 503 }
+      );
     }
 
     if (!aiRes.ok) {
@@ -133,6 +144,82 @@ export async function POST(req: NextRequest) {
         access_granted: false,
         user: { id: user.id, name: user.name, role: user.role },
       });
+    }
+
+    // Enforce student policy: must have current class schedule or active room registration.
+    if (user.role === "STUDENT") {
+      const { dayOfWeek, currentTime } = getCurrentDayAndTime();
+
+      const currentClass = await prisma.classSchedule.findFirst({
+        where: {
+          userId: user.id,
+          roomId: room.id,
+          dayOfWeek,
+          startTime: { lte: currentTime },
+          endTime: { gte: currentTime },
+        },
+        select: { id: true },
+      });
+
+      let hasRegistration = false;
+      if (!currentClass) {
+        const now = new Date();
+
+        const directToken = await prisma.accessToken.findFirst({
+          where: {
+            userId: user.id,
+            roomId: room.id,
+            validFrom: { lte: now },
+            validTo: { gte: now },
+          },
+          select: { id: true },
+        });
+
+        if (directToken) {
+          hasRegistration = true;
+        } else {
+          const groupToken = await prisma.accessToken.findFirst({
+            where: {
+              groupId: { not: null },
+              roomId: room.id,
+              validFrom: { lte: now },
+              validTo: { gte: now },
+              group: {
+                members: {
+                  some: {
+                    userId: user.id,
+                  },
+                },
+              },
+            },
+            select: { id: true },
+          });
+
+          if (groupToken) {
+            hasRegistration = true;
+          }
+        }
+      }
+
+      if (!currentClass && !hasRegistration) {
+        await prisma.log.create({
+          data: {
+            userId: user.id,
+            roomId: room.id,
+            action: "ACCESS_DENIED",
+            details: "Denied: student has no current class schedule and no active room registration",
+          },
+        });
+
+        return NextResponse.json({
+          matched: true,
+          face_detected: true,
+          score: aiData.score,
+          access_granted: false,
+          message: "ไม่พบตารางเรียนหรือรายการลงทะเบียนขอเข้าใช้ห้องในเวลานี้ กรุณาลงทะเบียนขอเข้าใช้ห้องก่อนใช้งาน",
+          user: { id: user.id, name: user.name, role: user.role },
+        });
+      }
     }
 
     // Try check-in, if already checked in → check-out

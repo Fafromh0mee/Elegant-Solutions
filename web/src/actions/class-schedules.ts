@@ -12,8 +12,9 @@ type ParsedRow = {
   dayOfWeek: number;
   startTime: string;
   endTime: string;
+  section: string;
   subjectName?: string;
-  subjectCode?: string;
+  subjectCode: string;
 };
 
 const dayMap: Record<string, number> = {
@@ -52,6 +53,27 @@ function isValidTime(value: string): boolean {
   return /^([01]\d|2[0-3]):[0-5]\d$/.test(value.trim());
 }
 
+function normalizeTime(value: string): string {
+  return value.trim().replace(".", ":");
+}
+
+function isValidSection(value: string): boolean {
+  return /^\d{3}[A-G]$/i.test(value.trim());
+}
+
+function timeToMinutes(value: string): number {
+  const [hh, mm] = value.split(":").map(Number);
+  return hh * 60 + mm;
+}
+
+function isTimeOverlap(startA: string, endA: string, startB: string, endB: string): boolean {
+  const aStart = timeToMinutes(startA);
+  const aEnd = timeToMinutes(endA);
+  const bStart = timeToMinutes(startB);
+  const bEnd = timeToMinutes(endB);
+  return aStart < bEnd && bStart < aEnd;
+}
+
 function parseCsvLine(line: string): string[] {
   const result: string[] = [];
   let current = "";
@@ -87,11 +109,13 @@ function rowToParsedRow(row: Record<string, string>, lineNo: number): { data?: P
   const studentId = (row.studentid || "").trim();
   const roomCode = (row.roomcode || "").trim();
   const dayRaw = (row.dayofweek || "").trim();
-  const startTime = (row.starttime || "").trim();
-  const endTime = (row.endtime || "").trim();
+  const startTime = normalizeTime(row.starttime || "");
+  const endTime = normalizeTime(row.endtime || "");
+  const section = (row.section || "").trim().toUpperCase();
+  const subjectCode = (row.subjectcode || "").trim().toUpperCase();
 
-  if (!studentId || !roomCode || !dayRaw || !startTime || !endTime) {
-    return { error: `แถว ${lineNo}: ข้อมูลไม่ครบ (studentId, roomCode, dayOfWeek, startTime, endTime)` };
+  if (!studentId || !roomCode || !dayRaw || !startTime || !endTime || !section || !subjectCode) {
+    return { error: `แถว ${lineNo}: ข้อมูลไม่ครบ (studentId, roomCode, dayOfWeek, startTime, endTime, section, subjectCode)` };
   }
 
   const dayOfWeek = parseDayOfWeek(dayRaw);
@@ -101,6 +125,10 @@ function rowToParsedRow(row: Record<string, string>, lineNo: number): { data?: P
 
   if (!isValidTime(startTime) || !isValidTime(endTime)) {
     return { error: `แถว ${lineNo}: รูปแบบเวลาไม่ถูกต้อง ต้องเป็น HH:MM` };
+  }
+
+  if (!isValidSection(section)) {
+    return { error: `แถว ${lineNo}: section ไม่ถูกต้อง (${section}) เช่น 327A` };
   }
 
   if (startTime >= endTime) {
@@ -114,8 +142,9 @@ function rowToParsedRow(row: Record<string, string>, lineNo: number): { data?: P
       dayOfWeek,
       startTime,
       endTime,
+      section,
       subjectName: row.subjectname?.trim() || undefined,
-      subjectCode: row.subjectcode?.trim() || undefined,
+      subjectCode,
     },
   };
 }
@@ -201,8 +230,12 @@ export async function importClassSchedulesAction(formData: FormData) {
   }
 
   const file = formData.get("file");
-  const semester = String(formData.get("semester") || "").trim() || null;
+  const semester = String(formData.get("semester") || "").trim();
   const replaceExisting = String(formData.get("replaceExisting") || "false") === "true";
+
+  if (!semester) {
+    return { error: "กรุณาระบุภาคการศึกษา เช่น 2/2026" };
+  }
 
   if (!(file instanceof File)) {
     return { error: "กรุณาเลือกไฟล์ CSV หรือ XLSX" };
@@ -243,14 +276,16 @@ export async function importClassSchedulesAction(formData: FormData) {
 
   const rowErrors = [...parsed.errors];
   const records: Array<{
+    lineNo: number;
     userId: string;
     roomId: string;
     dayOfWeek: number;
     startTime: string;
     endTime: string;
+    section: string;
     subjectName?: string;
-    subjectCode?: string;
-    semester?: string | null;
+    subjectCode: string;
+    semester: string;
   }> = [];
 
   parsed.rows.forEach((r, idx) => {
@@ -268,11 +303,13 @@ export async function importClassSchedulesAction(formData: FormData) {
     }
 
     records.push({
+      lineNo: idx + 2,
       userId,
       roomId,
       dayOfWeek: r.dayOfWeek,
       startTime: r.startTime,
       endTime: r.endTime,
+      section: r.section,
       subjectName: r.subjectName,
       subjectCode: r.subjectCode,
       semester,
@@ -283,26 +320,182 @@ export async function importClassSchedulesAction(formData: FormData) {
     return { error: "ไม่มีข้อมูลที่ผ่านการตรวจสอบ", rowErrors: rowErrors.slice(0, 30) };
   }
 
-  if (replaceExisting) {
-    if (semester) {
-      await prisma.classSchedule.deleteMany({ where: { semester } });
-    } else {
-      await prisma.classSchedule.deleteMany({});
+  const seenSubjectPerStudent = new Set<string>();
+  const perStudentDaySlots = new Map<string, Array<{ startTime: string; endTime: string; subjectCode: string; section: string }>>();
+  const invalidLineNos = new Set<number>();
+
+  records.forEach((record) => {
+    const rowNo = record.lineNo;
+    const subjectKey = `${record.userId}|${record.subjectCode}|${record.semester}`;
+    if (seenSubjectPerStudent.has(subjectKey)) {
+      rowErrors.push(`แถว ${rowNo}: ผู้ใช้คนเดิมลงวิชา ${record.subjectCode} ซ้ำในเทอม ${record.semester}`);
+      invalidLineNos.add(rowNo);
+      return;
     }
+    seenSubjectPerStudent.add(subjectKey);
+
+    const slotKey = `${record.userId}|${record.semester}|${record.dayOfWeek}`;
+    const slots = perStudentDaySlots.get(slotKey) ?? [];
+    const conflict = slots.find((slot) =>
+      isTimeOverlap(slot.startTime, slot.endTime, record.startTime, record.endTime)
+    );
+
+    if (conflict) {
+      rowErrors.push(
+        `แถว ${rowNo}: เวลาเรียนชนกันกับ ${conflict.subjectCode} (${conflict.section}) ในวันเดียวกัน`
+      );
+      invalidLineNos.add(rowNo);
+      return;
+    }
+
+    slots.push({
+      startTime: record.startTime,
+      endTime: record.endTime,
+      subjectCode: record.subjectCode,
+      section: record.section,
+    });
+    perStudentDaySlots.set(slotKey, slots);
+  });
+
+  const validRecords = records.filter((record) => !invalidLineNos.has(record.lineNo));
+
+  if (validRecords.length === 0) {
+    return { error: "ไม่มีข้อมูลที่ผ่านการตรวจสอบ", rowErrors: rowErrors.slice(0, 30) };
   }
 
-  await prisma.classSchedule.createMany({
-    data: records,
-    skipDuplicates: true,
-  });
+  if (!replaceExisting) {
+    const subjectPairs = validRecords.map((r) => ({ userId: r.userId, subjectCode: r.subjectCode, semester: r.semester }));
+    const existingSubjectRows = await prisma.classSchedule.findMany({
+      where: {
+        semester,
+        OR: subjectPairs.map((s) => ({ userId: s.userId, subjectCode: s.subjectCode })),
+      },
+      select: { userId: true, subjectCode: true },
+    });
+
+    const existingSubjectSet = new Set(existingSubjectRows.map((s) => `${s.userId}|${s.subjectCode}|${semester}`));
+    validRecords.forEach((record) => {
+      if (existingSubjectSet.has(`${record.userId}|${record.subjectCode}|${record.semester}`)) {
+        rowErrors.push(`แถว ${record.lineNo}: ผู้ใช้คนเดิมลงวิชา ${record.subjectCode} ในเทอม ${record.semester} อยู่แล้ว`);
+        invalidLineNos.add(record.lineNo);
+      }
+    });
+
+    const existingSlots = await prisma.classSchedule.findMany({
+      where: {
+        semester,
+        userId: { in: [...new Set(validRecords.map((r) => r.userId))] },
+        dayOfWeek: { in: [...new Set(validRecords.map((r) => r.dayOfWeek))] },
+      },
+      select: {
+        userId: true,
+        dayOfWeek: true,
+        startTime: true,
+        endTime: true,
+        subjectCode: true,
+      },
+    });
+
+    const existingSlotMap = new Map<string, Array<{ startTime: string; endTime: string; subjectCode: string | null }>>();
+    existingSlots.forEach((slot) => {
+      const key = `${slot.userId}|${semester}|${slot.dayOfWeek}`;
+      const current = existingSlotMap.get(key) ?? [];
+      current.push({
+        startTime: slot.startTime,
+        endTime: slot.endTime,
+        subjectCode: slot.subjectCode,
+      });
+      existingSlotMap.set(key, current);
+    });
+
+    validRecords.forEach((record) => {
+      const key = `${record.userId}|${record.semester}|${record.dayOfWeek}`;
+      const existing = existingSlotMap.get(key) ?? [];
+      const overlap = existing.find((slot) =>
+        isTimeOverlap(slot.startTime, slot.endTime, record.startTime, record.endTime)
+      );
+
+      if (overlap) {
+        rowErrors.push(
+          `แถว ${record.lineNo}: เวลาเรียนชนกับข้อมูลเดิม${overlap.subjectCode ? ` ของวิชา ${overlap.subjectCode}` : ""}`
+        );
+        invalidLineNos.add(record.lineNo);
+      }
+    });
+  }
+
+  const finalRecords = validRecords
+    .filter((record) => !invalidLineNos.has(record.lineNo))
+    .map((record) => ({
+      userId: record.userId,
+      roomId: record.roomId,
+      dayOfWeek: record.dayOfWeek,
+      startTime: record.startTime,
+      endTime: record.endTime,
+      section: record.section,
+      subjectName: record.subjectName,
+      subjectCode: record.subjectCode,
+      semester: record.semester,
+    }));
+
+  if (finalRecords.length === 0) {
+    return { error: "ไม่มีข้อมูลที่ผ่านการตรวจสอบ", rowErrors: rowErrors.slice(0, 30) };
+  }
+
+  if (replaceExisting) {
+    await prisma.classSchedule.deleteMany({ where: { semester } });
+  }
+
+  const BATCH_SIZE = 1000;
+  for (let i = 0; i < finalRecords.length; i += BATCH_SIZE) {
+    const chunk = finalRecords.slice(i, i + BATCH_SIZE);
+    await prisma.classSchedule.createMany({
+      data: chunk,
+      skipDuplicates: true,
+    });
+  }
 
   revalidatePath("/admin/schedule");
 
   return {
     success: true,
-    importedRows: records.length,
+    importedRows: finalRecords.length,
     rowErrors: rowErrors.slice(0, 30),
   };
+}
+
+export async function getMyClassSchedulesAction() {
+  const session = await auth();
+  if (!session || session.user.role !== "STUDENT") {
+    return { schedules: [] as Array<unknown> };
+  }
+
+  if (!session.user.studentId) {
+    return { schedules: [] as Array<unknown> };
+  }
+
+  const schedules = await prisma.classSchedule.findMany({
+    where: { userId: session.user.id },
+    select: {
+      id: true,
+      dayOfWeek: true,
+      startTime: true,
+      endTime: true,
+      section: true,
+      subjectName: true,
+      subjectCode: true,
+      semester: true,
+      room: {
+        select: {
+          roomCode: true,
+          name: true,
+        },
+      },
+    },
+    orderBy: [{ dayOfWeek: "asc" }, { startTime: "asc" }],
+  });
+
+  return { schedules };
 }
 
 export async function getClassScheduleSummaryAction() {

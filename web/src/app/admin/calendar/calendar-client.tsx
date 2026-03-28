@@ -59,6 +59,19 @@ interface RoomInfo {
   roomCode: string;
 }
 
+function parseRoomCode(roomCode: string): { building: string; floor: string } {
+  const normalized = roomCode.trim().toUpperCase();
+  const match = normalized.match(/^([A-Z]\d)-([1-9])\d{2}$/);
+  if (!match) {
+    return { building: "OTHER", floor: "OTHER" };
+  }
+
+  return {
+    building: match[1],
+    floor: match[2],
+  };
+}
+
 // ─── Color Palette ─────────────────────────────────────
 const ROOM_COLORS = [
   {
@@ -166,6 +179,8 @@ export function CalendarClient() {
   const [viewMode, setViewMode] = useState<"overview" | "room">("overview");
   const [timeRange, setTimeRange] = useState<"day" | "week">("week");
   const [selectedRoom, setSelectedRoom] = useState<string>("");
+  const [selectedBuilding, setSelectedBuilding] = useState<string>("");
+  const [selectedFloor, setSelectedFloor] = useState<string>("");
   const [roleFilter, setRoleFilter] = useState<"ALL" | "STUDENT" | "GUEST">(
     "ALL",
   );
@@ -186,6 +201,40 @@ export function CalendarClient() {
     });
     return map;
   }, [rooms]);
+
+  const buildingOptions = useMemo(() => {
+    const set = new Set<string>();
+    rooms.forEach((room) => {
+      set.add(parseRoomCode(room.roomCode).building);
+    });
+    return [...set].sort((a, b) => a.localeCompare(b));
+  }, [rooms]);
+
+  const floorOptions = useMemo(() => {
+    if (!selectedBuilding) return [];
+    const set = new Set<string>();
+    rooms.forEach((room) => {
+      const parsed = parseRoomCode(room.roomCode);
+      if (parsed.building === selectedBuilding) {
+        set.add(parsed.floor);
+      }
+    });
+    return [...set].sort((a, b) =>
+      a.localeCompare(b, undefined, { numeric: true }),
+    );
+  }, [rooms, selectedBuilding]);
+
+  const filteredRooms = useMemo(() => {
+    if (!selectedBuilding || !selectedFloor) return [];
+    return rooms
+      .filter((room) => {
+        const parsed = parseRoomCode(room.roomCode);
+        return (
+          parsed.building === selectedBuilding && parsed.floor === selectedFloor
+        );
+      })
+      .sort((a, b) => a.roomCode.localeCompare(b.roomCode));
+  }, [rooms, selectedBuilding, selectedFloor]);
 
   // Calculate date range
   const dateRange = useMemo(() => {
@@ -321,8 +370,9 @@ export function CalendarClient() {
               <button
                 onClick={() => {
                   setViewMode("room");
-                  if (!selectedRoom && rooms.length > 0)
-                    setSelectedRoom(rooms[0].id);
+                  if (!selectedBuilding && buildingOptions.length > 0) {
+                    setSelectedBuilding(buildingOptions[0]);
+                  }
                 }}
                 className={cn(
                   "flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium transition-colors border-l",
@@ -370,22 +420,70 @@ export function CalendarClient() {
 
           {/* Room Selector (Single Room mode) */}
           {viewMode === "room" && (
-            <div>
-              <label className="text-xs font-medium text-gray-500 mb-1 block">
-                เลือกห้อง
-              </label>
-              <select
-                className="border rounded-lg px-3 py-1.5 text-sm bg-white min-w-40"
-                value={selectedRoom}
-                onChange={(e) => setSelectedRoom(e.target.value)}
-              >
-                {rooms.map((r) => (
-                  <option key={r.id} value={r.id}>
-                    {r.name} ({r.roomCode})
-                  </option>
-                ))}
-              </select>
-            </div>
+            <>
+              <div>
+                <label className="text-xs font-medium text-gray-500 mb-1 block">
+                  อาคาร
+                </label>
+                <select
+                  className="border rounded-lg px-3 py-1.5 text-sm bg-white min-w-32"
+                  value={selectedBuilding}
+                  onChange={(e) => {
+                    setSelectedBuilding(e.target.value);
+                    setSelectedFloor("");
+                    setSelectedRoom("");
+                  }}
+                >
+                  <option value="">เลือกอาคาร</option>
+                  {buildingOptions.map((building) => (
+                    <option key={building} value={building}>
+                      {building}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="text-xs font-medium text-gray-500 mb-1 block">
+                  ชั้น
+                </label>
+                <select
+                  className="border rounded-lg px-3 py-1.5 text-sm bg-white min-w-28"
+                  value={selectedFloor}
+                  onChange={(e) => {
+                    setSelectedFloor(e.target.value);
+                    setSelectedRoom("");
+                  }}
+                  disabled={!selectedBuilding}
+                >
+                  <option value="">เลือกชั้น</option>
+                  {floorOptions.map((floor) => (
+                    <option key={floor} value={floor}>
+                      {floor === "OTHER" ? "OTHER" : `ชั้น ${floor}`}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="text-xs font-medium text-gray-500 mb-1 block">
+                  เลือกห้อง
+                </label>
+                <select
+                  className="border rounded-lg px-3 py-1.5 text-sm bg-white min-w-48"
+                  value={selectedRoom}
+                  onChange={(e) => setSelectedRoom(e.target.value)}
+                  disabled={!selectedFloor}
+                >
+                  <option value="">เลือกห้อง</option>
+                  {filteredRooms.map((r) => (
+                    <option key={r.id} value={r.id}>
+                      {r.name} ({r.roomCode})
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </>
           )}
 
           {/* Role Filter */}

@@ -27,7 +27,7 @@ export async function generateAccessTokenAction(input: {
     }
 
     if (validFrom <= now) {
-      return { error: "เวลาเริ่มต้นต้องเป็นเวลาในอนาคต" };
+      return { error: "เวลาลงทะเบียนต้องเป็นเวลาล่วงหน้าอย่างน้อย 1 นาที" };
     }
 
     if (validTo <= validFrom) {

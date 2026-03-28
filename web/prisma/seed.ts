@@ -9,6 +9,21 @@ const prisma = new PrismaClient({ adapter });
 async function main() {
   console.log("🌱 Seeding database...");
 
+  const buildingCodes = [
+    "A1",
+    "A2",
+    "A3",
+    "A4",
+    "A5",
+    "A6",
+    "A7",
+    "A8",
+    "B4",
+    "C1",
+    "C2",
+    "C6",
+  ];
+
   // Create Admin user
   const adminPassword = await hash("admin123", 12);
   const admin = await prisma.user.upsert({
@@ -29,17 +44,36 @@ async function main() {
   const staffPassword = await hash("staff123", 12);
   const staff = await prisma.user.upsert({
     where: { email: "staff@elegant.com" },
-    update: {},
+    update: {
+    },
     create: {
       email: "staff@elegant.com",
       name: "Student Member",
       hashedPassword: staffPassword,
       role: "STUDENT",
       status: "APPROVED",
+      studentId: "1660708635",
       phone: "02-000-0002",
     },
   });
   console.log(`✅ Student created: ${staff.email}`);
+
+  const studentTwoPassword = await hash("student123", 12);
+  const studentTwo = await prisma.user.upsert({
+    where: { email: "student2@elegant.com" },
+    update: {
+    },
+    create: {
+      email: "student2@elegant.com",
+      name: "Student Two",
+      hashedPassword: studentTwoPassword,
+      role: "STUDENT",
+      status: "APPROVED",
+      studentId: "1660703413",
+      phone: "02-000-0004",
+    },
+  });
+  console.log(`✅ Student created: ${studentTwo.email}`);
 
   // Create Guest user
   const guestPassword = await hash("guest123", 12);
@@ -57,7 +91,7 @@ async function main() {
   });
   console.log(`✅ Guest created: ${guest.email}`);
 
-  // Create Rooms
+  // Create baseline common rooms
   const rooms = [
     {
       name: "ห้องประชุม A",
@@ -98,10 +132,42 @@ async function main() {
     console.log(`✅ Room created: ${room.name} (${room.roomCode})`);
   }
 
+  // Create long-term room inventory by building/floor/room
+  let generatedCount = 0;
+  for (const building of buildingCodes) {
+    const maxFloors = building === "B4" ? 6 : 4;
+    for (let floor = 1; floor <= maxFloors; floor += 1) {
+      for (let roomNo = 1; roomNo <= 8; roomNo += 1) {
+        const roomCode = `${building}-${floor}${String(roomNo).padStart(2, "0")}`;
+        const roomName = `อาคาร ${building} ชั้น ${floor} ห้อง ${String(roomNo).padStart(2, "0")}`;
+
+        await prisma.room.upsert({
+          where: { roomCode },
+          update: {
+            name: roomName,
+            description: `อาคาร ${building} ชั้น ${floor}`,
+          },
+          create: {
+            name: roomName,
+            roomCode,
+            description: `อาคาร ${building} ชั้น ${floor}`,
+            capacity: 40,
+            guestAccess: false,
+            staffOnly: false,
+            isActive: true,
+          },
+        });
+        generatedCount += 1;
+      }
+    }
+  }
+  console.log(`✅ Generated room inventory: ${generatedCount} rooms`);
+
   console.log("\n🎉 Seeding completed!");
   console.log("\n📋 Test Accounts:");
   console.log("  Admin: admin@elegant.com / admin123");
-  console.log("  Student: staff@elegant.com / staff123");
+  console.log("  Student 1: staff@elegant.com / staff123 (1660708635)");
+  console.log("  Student 2: student2@elegant.com / student123 (1660703412)");
   console.log("  Guest: guest@example.com / guest123");
 }
 
