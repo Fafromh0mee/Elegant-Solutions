@@ -26,6 +26,7 @@
 
   body {
     @apply bg-(--color-bg) text-(--color-text) antialiased;
+    font-family: 'IBM Plex Sans Thai', sans-serif;
     font-feature-settings: "rlig" 1, "calt" 1;
   }
 }

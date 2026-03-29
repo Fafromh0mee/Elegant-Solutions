@@ -1,12 +1,6 @@
 import type { Metadata } from "next";
-import { IBM_Plex_Sans_Thai } from "next/font/google";
 import "./globals.css";
 import { Providers } from "@/components/providers";
-
-const ibmPlexSansThai = IBM_Plex_Sans_Thai({
-  subsets: ["latin", "thai"],
-  weight: ["100", "200", "300", "400", "500", "600", "700"],
-});
 
 export const metadata: Metadata = {
   title: "Elegant Solutions - Smart Access Management",
@@ -20,7 +14,15 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="th">
-      <body className={ibmPlexSansThai.className}>
+      <head>
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+        <link
+          href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@100;200;300;400;500;600;700&display=swap"
+          rel="stylesheet"
+        />
+      </head>
+      <body>
         <Providers>{children}</Providers>
       </body>
     </html>

@@ -65,6 +65,7 @@ model User {
   groupMembers   GroupMember[]
   faceProfile    FaceProfile?
   classSchedules ClassSchedule[]
+  agentLogs      AgentLog[]
 
   @@map("users")
 }
@@ -82,10 +83,11 @@ model Room {
   updatedAt   DateTime @updatedAt
 
   // Relations
-  accessTokens AccessToken[]
-  sessions     Session[]
-  logs         Log[]
+  accessTokens  AccessToken[]
+  sessions      Session[]
+  logs          Log[]
   classSchedules ClassSchedule[]
+  agentMachines AgentMachine[]
 
   @@map("rooms")
 }
@@ -213,4 +215,45 @@ model SystemSetting {
   updatedAt DateTime @updatedAt
 
   @@map("system_settings")
+}
+
+model AgentMachine {
+  id          String    @id @default(cuid())
+  machineCode String    @unique
+  hostname    String
+  roomId      String?
+  apiKey      String    @unique @default(cuid())
+  lastSeen    DateTime?
+  isActive    Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+
+  room      Room?      @relation(fields: [roomId], references: [id], onDelete: SetNull)
+  agentLogs AgentLog[]
+
+  @@map("agent_machines")
+}
+
+model AgentLog {
+  id          String   @id @default(cuid())
+  machineId   String
+  userId      String?
+  activeApp   String?
+  activeTitle String?
+  riskLevel   String   @default("NORMAL")
+  createdAt   DateTime @default(now())
+
+  machine AgentMachine @relation(fields: [machineId], references: [id], onDelete: Cascade)
+  user    User?        @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([machineId, createdAt])
+  @@map("agent_logs")
+}
+
+model AgentBlacklist {
+  id        String   @id @default(cuid())
+  pattern   String   @unique
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  @@map("agent_blacklist")
 }

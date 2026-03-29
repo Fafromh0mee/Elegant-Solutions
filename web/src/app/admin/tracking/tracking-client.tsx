@@ -1,382 +1,466 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import React, { useState, useTransition } from "react";
+import { useQuery } from "@tanstack/react-query";
 import {
   Activity,
   AlertTriangle,
-  Clock3,
+  ChevronDown,
+  ChevronUp,
   Monitor,
+  Plus,
   RefreshCw,
   ShieldCheck,
   User,
   Wifi,
+  WifiOff,
+  X,
 } from "lucide-react";
+import {
+  addBlacklistAction,
+  removeBlacklistAction,
+  updateBlacklistAction,
+} from "@/actions/agent";
 
-type RoomState = {
-  roomCode: string;
-  roomName: string;
-  occupancy: number;
-  capacity: number;
-  confidence: number;
+type SnapshotMachine = {
+  id: string;
+  machineCode: string;
+  hostname: string;
+  room: { roomCode: string; name: string } | null;
+  isOnline: boolean;
+  lastSeen: string | null;
+  currentUser: { name: string; email: string } | null;
+  activeApp: string | null;
+  activeTitle: string | null;
+  riskLevel: string;
+  loggedSince: string | null;
 };
 
-type UserAppUsage = {
-  userName: string;
-  roomCode: string;
-  app: string;
-  website: string;
-  status: "NORMAL" | "WATCH";
-  minutes: number;
+type Snapshot = {
+  machines: SnapshotMachine[];
+  summary: {
+    totalMachines: number;
+    onlineMachines: number;
+    activeRooms: number;
+    watchAlerts: number;
+  };
 };
 
-type TrackingEvent = {
-  at: string;
-  type: "DETECTED" | "WARNING" | "CHECKED";
-  message: string;
+type BlacklistItem = {
+  id: string;
+  pattern: string;
+  isActive: boolean;
+  createdAt: Date;
 };
 
-const baseRooms: RoomState[] = [
-  {
-    roomCode: "A101",
-    roomName: "Innovation Lab",
-    occupancy: 18,
-    capacity: 30,
-    confidence: 0.92,
-  },
-  {
-    roomCode: "B204",
-    roomName: "Data Classroom",
-    occupancy: 26,
-    capacity: 32,
-    confidence: 0.88,
-  },
-  {
-    roomCode: "C301",
-    roomName: "Design Studio",
-    occupancy: 9,
-    capacity: 24,
-    confidence: 0.95,
-  },
-  {
-    roomCode: "D102",
-    roomName: "Network Lab",
-    occupancy: 14,
-    capacity: 20,
-    confidence: 0.9,
-  },
-];
-
-const baseUsage: UserAppUsage[] = [
-  {
-    userName: "Anan P.",
-    roomCode: "A101",
-    app: "VS Code",
-    website: "github.com",
-    status: "NORMAL",
-    minutes: 37,
-  },
-  {
-    userName: "Mali K.",
-    roomCode: "B204",
-    app: "Chrome",
-    website: "chat.openai.com",
-    status: "WATCH",
-    minutes: 19,
-  },
-  {
-    userName: "Tee S.",
-    roomCode: "D102",
-    app: "Figma",
-    website: "figma.com",
-    status: "NORMAL",
-    minutes: 42,
-  },
-  {
-    userName: "Nita R.",
-    roomCode: "B204",
-    app: "YouTube",
-    website: "youtube.com",
-    status: "WATCH",
-    minutes: 11,
-  },
-  {
-    userName: "Pond W.",
-    roomCode: "C301",
-    app: "PyCharm",
-    website: "docs.python.org",
-    status: "NORMAL",
-    minutes: 24,
-  },
-];
-
-const baseEvents: TrackingEvent[] = [
-  { at: "10:03", type: "DETECTED", message: "A101 occupancy increased to 18" },
-  {
-    at: "10:01",
-    type: "WARNING",
-    message: "B204 unusual website pattern detected",
-  },
-  { at: "09:58", type: "CHECKED", message: "Agent heartbeat check passed" },
-  { at: "09:54", type: "DETECTED", message: "D102 check-in burst observed" },
-  { at: "09:49", type: "CHECKED", message: "Model confidence recalibrated" },
-];
-
-function jitterRooms(data: RoomState[]) {
-  return data.map((room) => {
-    const delta = Math.floor(Math.random() * 5) - 2;
-    const next = Math.max(0, Math.min(room.capacity, room.occupancy + delta));
-    const confidenceDelta = Math.random() * 0.04 - 0.02;
-    const confidence = Math.max(
-      0.7,
-      Math.min(0.99, room.confidence + confidenceDelta),
-    );
-
-    return {
-      ...room,
-      occupancy: next,
-      confidence,
-    };
-  });
+async function fetchSnapshot(): Promise<Snapshot> {
+  const res = await fetch("/api/tracking/snapshot", { cache: "no-store" });
+  if (!res.ok) throw new Error("Failed to fetch snapshot");
+  return res.json();
 }
 
-export function TrackingClient() {
-  const [rooms, setRooms] = useState(baseRooms);
-  const [usage] = useState(baseUsage);
-  const [events, setEvents] = useState(baseEvents);
-  const [refreshing, setRefreshing] = useState(false);
-  const [lastUpdated, setLastUpdated] = useState(new Date());
+export function TrackingClient({
+  initialBlacklist,
+}: {
+  initialBlacklist: BlacklistItem[];
+}) {
+  const [blacklist, setBlacklist] = useState(initialBlacklist);
+  const [expandedMachine, setExpandedMachine] = useState<string | null>(null);
+  const [newPattern, setNewPattern] = useState("");
+  const [blacklistError, setBlacklistError] = useState("");
+  const [isPending, startTransition] = useTransition();
 
-  const anomalies = useMemo(
-    () => usage.filter((u) => u.status === "WATCH").length,
-    [usage],
-  );
-  const activeRooms = useMemo(
-    () => rooms.filter((r) => r.occupancy > 0).length,
-    [rooms],
-  );
-  const onlineAgents = useMemo(() => rooms.length + 1, [rooms]);
-  const avgConfidence = useMemo(() => {
-    const total = rooms.reduce((sum, r) => sum + r.confidence, 0);
-    return Math.round((total / rooms.length) * 100);
-  }, [rooms]);
+  const { data, isLoading, dataUpdatedAt, refetch, isRefetching } = useQuery({
+    queryKey: ["tracking-snapshot"],
+    queryFn: fetchSnapshot,
+    refetchInterval: 5000,
+    staleTime: 0,
+  });
 
-  function pushHeartbeat() {
-    const time = new Date().toLocaleTimeString("th-TH", {
-      hour: "2-digit",
-      minute: "2-digit",
-      hour12: false,
+  const summary = data?.summary ?? {
+    totalMachines: 0,
+    onlineMachines: 0,
+    activeRooms: 0,
+    watchAlerts: 0,
+  };
+
+  const machines = data?.machines ?? [];
+
+  const lastUpdated = dataUpdatedAt ? new Date(dataUpdatedAt) : null;
+
+  function handleAddBlacklist() {
+    if (!newPattern.trim()) return;
+    setBlacklistError("");
+    startTransition(async () => {
+      const result = await addBlacklistAction(newPattern.trim());
+      if (result.error) {
+        setBlacklistError(result.error);
+        return;
+      }
+      const res = await fetch("/api/tracking/snapshot", { cache: "no-store" });
+      const updated = await fetch("/api/tracking/snapshot", {
+        cache: "no-store",
+      });
+      void updated;
+      void res;
+      setBlacklist((prev) => [
+        {
+          id: Date.now().toString(),
+          pattern: newPattern.trim().toLowerCase(),
+          isActive: true,
+          createdAt: new Date(),
+        },
+        ...prev,
+      ]);
+      setNewPattern("");
     });
-
-    setEvents((prev) => [
-      {
-        at: time,
-        type: "CHECKED",
-        message: "Agent heartbeat check passed",
-      },
-      ...prev.slice(0, 6),
-    ]);
   }
 
-  function refreshMock() {
-    setRefreshing(true);
-    setRooms((prev) => jitterRooms(prev));
-    pushHeartbeat();
-    setLastUpdated(new Date());
-    window.setTimeout(() => setRefreshing(false), 400);
+  function handleRemoveBlacklist(id: string) {
+    startTransition(async () => {
+      await removeBlacklistAction(id);
+      setBlacklist((prev) => prev.filter((b) => b.id !== id));
+    });
   }
 
-  useEffect(() => {
-    const timer = window.setInterval(() => {
-      setRooms((prev) => jitterRooms(prev));
-      setLastUpdated(new Date());
-    }, 10000);
-
-    return () => window.clearInterval(timer);
-  }, []);
+  function handleToggleBlacklist(id: string, current: boolean) {
+    startTransition(async () => {
+      await updateBlacklistAction(id, !current);
+      setBlacklist((prev) =>
+        prev.map((b) => (b.id === id ? { ...b, isActive: !current } : b)),
+      );
+    });
+  }
 
   return (
     <div className="space-y-6">
+      {/* Header */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold flex items-center gap-2">
             <Activity className="h-6 w-6 text-(--color-cta)" />
-            Tracking Agent Dashboard (Mock)
+            Tracking Agent Dashboard
           </h1>
           <p className="text-sm text-gray-500 mt-1">
-            ข้อมูลจำลองสำหรับทดสอบ UI และ workflow ติดตามการใช้งานห้องเรียน
+            {lastUpdated
+              ? `อัปเดตล่าสุด ${lastUpdated.toLocaleTimeString("th-TH")}`
+              : "กำลังโหลด..."}
           </p>
         </div>
-        <div className="flex items-center gap-3">
-          <p className="text-xs text-gray-500">
-            อัปเดตล่าสุด {lastUpdated.toLocaleTimeString("th-TH")}
-          </p>
-          <button
-            onClick={refreshMock}
-            className="btn-secondary"
-            disabled={refreshing}
-          >
-            <RefreshCw
-              className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`}
-            />
-            รีเฟรชข้อมูล
-          </button>
-        </div>
+        <button
+          onClick={() => refetch()}
+          className="btn-secondary"
+          disabled={isRefetching || isLoading}
+        >
+          <RefreshCw
+            className={`h-4 w-4 ${isRefetching ? "animate-spin" : ""}`}
+          />
+          รีเฟรช
+        </button>
       </div>
 
+      {/* Summary Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
         <MetricCard
-          label="Agents Online"
-          value={onlineAgents}
-          hint="รวม sensor + edge nodes"
+          label="Machines Online"
+          value={`${summary.onlineMachines}/${summary.totalMachines}`}
+          hint="เครื่องที่ online ตอนนี้"
           icon={<Wifi className="h-5 w-5" />}
           tone="blue"
         />
         <MetricCard
           label="Active Rooms"
-          value={activeRooms}
-          hint="ห้องที่มีคนใช้งานตอนนี้"
+          value={summary.activeRooms}
+          hint="ห้องที่มีเครื่องออนไลน์อยู่"
           icon={<Monitor className="h-5 w-5" />}
           tone="green"
         />
         <MetricCard
           label="Watch Alerts"
-          value={anomalies}
-          hint="พฤติกรรมที่ควรตรวจสอบ"
+          value={summary.watchAlerts}
+          hint="เครื่องที่ตรวจพบพฤติกรรมผิดปกติ"
           icon={<AlertTriangle className="h-5 w-5" />}
           tone="amber"
         />
         <MetricCard
-          label="Avg Confidence"
-          value={`${avgConfidence}%`}
-          hint="คุณภาพการติดตามโดยรวม"
+          label="Blacklist Rules"
+          value={blacklist.filter((b) => b.isActive).length}
+          hint="กฎที่เปิดใช้งานอยู่"
           icon={<ShieldCheck className="h-5 w-5" />}
           tone="purple"
         />
       </div>
 
-      <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
-        <div className="card xl:col-span-2">
-          <h2 className="font-semibold mb-4">Room Occupancy Board</h2>
-          <div className="space-y-4">
-            {rooms.map((room) => {
-              const pct = Math.round((room.occupancy / room.capacity) * 100);
-              const barTone =
-                pct >= 90
-                  ? "bg-red-500"
-                  : pct >= 75
-                    ? "bg-amber-500"
-                    : "bg-emerald-500";
-
-              return (
-                <div
-                  key={room.roomCode}
-                  className="rounded-xl border border-gray-100 p-3"
-                >
-                  <div className="flex items-center justify-between gap-3">
-                    <div>
-                      <p className="font-medium text-gray-900">
-                        {room.roomName}
-                      </p>
-                      <p className="text-xs text-gray-500">{room.roomCode}</p>
-                    </div>
-                    <div className="text-right">
-                      <p className="text-sm font-semibold">
-                        {room.occupancy}/{room.capacity}
-                      </p>
-                      <p className="text-xs text-gray-500">
-                        confidence {Math.round(room.confidence * 100)}%
-                      </p>
-                    </div>
-                  </div>
-                  <div className="mt-2 h-2 rounded-full bg-gray-100 overflow-hidden">
-                    <div
-                      className={`h-full ${barTone}`}
-                      style={{ width: `${pct}%` }}
-                    />
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-
-        <div className="card">
-          <h2 className="font-semibold mb-4">Live Event Stream</h2>
-          <div className="space-y-3">
-            {events.map((event, idx) => (
-              <div
-                key={`${event.at}-${event.message}-${idx}`}
-                className="border-b last:border-b-0 pb-3 last:pb-0"
-              >
-                <div className="flex items-center justify-between text-xs text-gray-500">
-                  <span>{event.at}</span>
-                  <span
-                    className={
-                      event.type === "WARNING"
-                        ? "text-red-600"
-                        : "text-gray-500"
-                    }
+      {/* Machine Table */}
+      <div className="card overflow-x-auto">
+        <h2 className="font-semibold mb-4">เครื่องคอมพิวเตอร์ทั้งหมด</h2>
+        {isLoading ? (
+          <p className="text-sm text-gray-500 py-6 text-center">
+            กำลังโหลดข้อมูล...
+          </p>
+        ) : machines.length === 0 ? (
+          <p className="text-sm text-gray-500 py-6 text-center">
+            ยังไม่มีเครื่องลงทะเบียน
+          </p>
+        ) : (
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b text-left text-gray-500">
+                <th className="pb-3 pr-4">สถานะ</th>
+                <th className="pb-3 pr-4">เครื่อง / ห้อง</th>
+                <th className="pb-3 pr-4">ผู้ใช้</th>
+                <th className="pb-3 pr-4">แอป / หัวข้อ</th>
+                <th className="pb-3 pr-4">เริ่มใช้</th>
+                <th className="pb-3 pr-4">Risk</th>
+                <th className="pb-3">Log</th>
+              </tr>
+            </thead>
+            <tbody>
+              {machines.map((m) => (
+                <React.Fragment key={m.id}>
+                  <tr
+                    className="border-b last:border-0 hover:bg-gray-50"
                   >
-                    {event.type}
+                    <td className="py-3 pr-4">
+                      {m.isOnline ? (
+                        <span className="inline-flex items-center gap-1 rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700">
+                          <Wifi className="h-3 w-3" />
+                          Online
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-500">
+                          <WifiOff className="h-3 w-3" />
+                          Offline
+                        </span>
+                      )}
+                    </td>
+                    <td className="py-3 pr-4">
+                      <p className="font-medium text-gray-900">
+                        {m.machineCode}
+                      </p>
+                      <p className="text-xs text-gray-400">
+                        {m.room?.roomCode
+                          ? `${m.room.roomCode} — ${m.room.name}`
+                          : m.hostname}
+                      </p>
+                    </td>
+                    <td className="py-3 pr-4">
+                      {m.currentUser ? (
+                        <div className="flex items-center gap-2">
+                          <User className="h-4 w-4 text-gray-400 shrink-0" />
+                          <div>
+                            <p className="font-medium">{m.currentUser.name}</p>
+                            <p className="text-xs text-gray-400">
+                              {m.currentUser.email}
+                            </p>
+                          </div>
+                        </div>
+                      ) : (
+                        <span className="text-gray-400">—</span>
+                      )}
+                    </td>
+                    <td className="py-3 pr-4 max-w-[220px]">
+                      {m.activeApp ? (
+                        <div>
+                          <p className="font-medium">{m.activeApp}</p>
+                          <p
+                            className="text-xs text-gray-400 truncate"
+                            title={m.activeTitle ?? ""}
+                          >
+                            {m.activeTitle ?? "—"}
+                          </p>
+                        </div>
+                      ) : (
+                        <span className="text-gray-400">—</span>
+                      )}
+                    </td>
+                    <td className="py-3 pr-4 text-xs text-gray-500">
+                      {m.loggedSince
+                        ? new Date(m.loggedSince).toLocaleTimeString("th-TH", {
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          })
+                        : "—"}
+                    </td>
+                    <td className="py-3 pr-4">
+                      <span
+                        className={
+                          m.riskLevel === "WATCH"
+                            ? "inline-flex rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700"
+                            : "inline-flex rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700"
+                        }
+                      >
+                        {m.riskLevel}
+                      </span>
+                    </td>
+                    <td className="py-3">
+                      <button
+                        onClick={() =>
+                          setExpandedMachine((prev) =>
+                            prev === m.id ? null : m.id,
+                          )
+                        }
+                        className="p-1 rounded hover:bg-gray-100 text-gray-500"
+                        title="ดูประวัติ"
+                      >
+                        {expandedMachine === m.id ? (
+                          <ChevronUp className="h-4 w-4" />
+                        ) : (
+                          <ChevronDown className="h-4 w-4" />
+                        )}
+                      </button>
+                    </td>
+                  </tr>
+                  {expandedMachine === m.id && (
+                    <tr className="bg-gray-50">
+                      <td colSpan={7} className="px-4 pb-4">
+                        <LogHistoryDropdown machineId={m.id} />
+                      </td>
+                    </tr>
+                  )}
+                </React.Fragment>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
+
+      {/* Blacklist Manager */}
+      <div className="card">
+        <h2 className="font-semibold mb-4">Website Blacklist</h2>
+        <div className="flex gap-2 mb-4">
+          <input
+            type="text"
+            className="input flex-1"
+            placeholder="เช่น youtube.com, tiktok.com"
+            value={newPattern}
+            onChange={(e) => setNewPattern(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && handleAddBlacklist()}
+          />
+          <button
+            className="btn-primary"
+            onClick={handleAddBlacklist}
+            disabled={isPending || !newPattern.trim()}
+          >
+            <Plus className="h-4 w-4" />
+            เพิ่ม
+          </button>
+        </div>
+        {blacklistError && (
+          <p className="text-sm text-red-500 mb-3">{blacklistError}</p>
+        )}
+        {blacklist.length === 0 ? (
+          <p className="text-sm text-gray-400">ยังไม่มีรายการ</p>
+        ) : (
+          <div className="space-y-2">
+            {blacklist.map((item) => (
+              <div
+                key={item.id}
+                className="flex items-center justify-between rounded-lg border px-3 py-2"
+              >
+                <div className="flex items-center gap-3">
+                  <input
+                    type="checkbox"
+                    checked={item.isActive}
+                    onChange={() =>
+                      handleToggleBlacklist(item.id, item.isActive)
+                    }
+                    className="h-4 w-4 accent-(--color-primary)"
+                  />
+                  <span
+                    className={`text-sm font-mono ${!item.isActive ? "line-through text-gray-400" : ""}`}
+                  >
+                    {item.pattern}
                   </span>
                 </div>
-                <p className="text-sm text-gray-700 mt-1">{event.message}</p>
+                <button
+                  onClick={() => handleRemoveBlacklist(item.id)}
+                  disabled={isPending}
+                  className="p-1 text-gray-400 hover:text-red-500 rounded"
+                >
+                  <X className="h-4 w-4" />
+                </button>
               </div>
             ))}
           </div>
-        </div>
+        )}
       </div>
+    </div>
+  );
+}
 
-      <div className="card overflow-x-auto">
-        <h2 className="font-semibold mb-4">User App/Site Snapshot (Mock)</h2>
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="border-b text-left text-gray-500">
-              <th className="pb-3 pr-4">ผู้ใช้</th>
-              <th className="pb-3 pr-4">ห้อง</th>
-              <th className="pb-3 pr-4">App</th>
-              <th className="pb-3 pr-4">Website</th>
-              <th className="pb-3 pr-4">ระยะเวลา</th>
-              <th className="pb-3">สถานะ</th>
-            </tr>
-          </thead>
-          <tbody>
-            {usage.map((row) => (
-              <tr
-                key={`${row.userName}-${row.roomCode}-${row.website}`}
-                className="border-b last:border-0"
+function LogHistoryDropdown({ machineId }: { machineId: string }) {
+  const { data, isLoading } = useQuery({
+    queryKey: ["agent-logs", machineId],
+    queryFn: async () => {
+      const res = await fetch(
+        `/api/tracking/machine-logs?machineId=${machineId}`,
+      );
+      if (!res.ok) return [];
+      return res.json() as Promise<
+        {
+          id: string;
+          createdAt: string;
+          activeApp: string | null;
+          activeTitle: string | null;
+          riskLevel: string;
+          user: { name: string } | null;
+        }[]
+      >;
+    },
+    staleTime: 10000,
+  });
+
+  if (isLoading)
+    return <p className="text-xs text-gray-400 py-2">กำลังโหลด...</p>;
+  if (!data || data.length === 0)
+    return <p className="text-xs text-gray-400 py-2">ไม่มีประวัติ</p>;
+
+  return (
+    <div className="mt-2 max-h-48 overflow-y-auto">
+      <table className="w-full text-xs">
+        <thead>
+          <tr className="text-left text-gray-400 border-b">
+            <th className="pb-1 pr-3">เวลา</th>
+            <th className="pb-1 pr-3">ผู้ใช้</th>
+            <th className="pb-1 pr-3">แอป</th>
+            <th className="pb-1 pr-3">หัวข้อ</th>
+            <th className="pb-1">Risk</th>
+          </tr>
+        </thead>
+        <tbody>
+          {data.map((log) => (
+            <tr key={log.id} className="border-b last:border-0">
+              <td className="py-1 pr-3 text-gray-500">
+                {new Date(log.createdAt).toLocaleTimeString("th-TH", {
+                  hour: "2-digit",
+                  minute: "2-digit",
+                  second: "2-digit",
+                })}
+              </td>
+              <td className="py-1 pr-3">{log.user?.name ?? "—"}</td>
+              <td className="py-1 pr-3">{log.activeApp ?? "—"}</td>
+              <td
+                className="py-1 pr-3 max-w-[200px] truncate"
+                title={log.activeTitle ?? ""}
               >
-                <td className="py-3 pr-4">
-                  <div className="flex items-center gap-2">
-                    <User className="h-4 w-4 text-gray-400" />
-                    {row.userName}
-                  </div>
-                </td>
-                <td className="py-3 pr-4">{row.roomCode}</td>
-                <td className="py-3 pr-4">{row.app}</td>
-                <td className="py-3 pr-4">{row.website}</td>
-                <td className="py-3 pr-4">
-                  <div className="flex items-center gap-1 text-gray-600">
-                    <Clock3 className="h-3.5 w-3.5" />
-                    {row.minutes} นาที
-                  </div>
-                </td>
-                <td className="py-3">
-                  <span
-                    className={
-                      row.status === "WATCH"
-                        ? "inline-flex rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700"
-                        : "inline-flex rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700"
-                    }
-                  >
-                    {row.status}
-                  </span>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+                {log.activeTitle ?? "—"}
+              </td>
+              <td className="py-1">
+                <span
+                  className={
+                    log.riskLevel === "WATCH"
+                      ? "text-amber-600 font-medium"
+                      : "text-green-600"
+                  }
+                >
+                  {log.riskLevel}
+                </span>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 }
@@ -414,3 +498,4 @@ function MetricCard({
     </div>
   );
 }
+
