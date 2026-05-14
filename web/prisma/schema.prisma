@@ -141,13 +141,14 @@ model GroupMember {
 }
 
 model Session {
-  id         String        @id @default(cuid())
-  userId     String
-  roomId     String
-  checkIn    DateTime      @default(now())
-  checkOut   DateTime?
-  status     SessionStatus @default(ACTIVE)
-  createdAt  DateTime      @default(now())
+  id                  String        @id @default(cuid())
+  userId              String
+  roomId              String
+  checkIn             DateTime      @default(now())
+  checkOut            DateTime?
+  scheduledCheckOut   DateTime?
+  status              SessionStatus @default(ACTIVE)
+  createdAt           DateTime      @default(now())
 
   // Relations
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)

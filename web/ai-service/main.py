@@ -15,11 +15,11 @@ from PIL import Image  # type: ignore
 # ---------------------------------------------------------------------------
 # Config
 # ---------------------------------------------------------------------------
-FACE_THRESHOLD = float(os.getenv("FACE_THRESHOLD", "0.40"))
+FACE_THRESHOLD = float(os.getenv("FACE_THRESHOLD", "0.70"))
 MODEL_NAME = os.getenv("FACE_MODEL", "buffalo_l")
 MODEL_ROOT = os.getenv("MODEL_ROOT", os.path.expanduser("~/.insightface"))
 MIN_FACE_SIZE = 80  # px – reject tiny faces
-MIN_DET_SCORE = 0.5  # minimum detection confidence
+MIN_DET_SCORE = 0.7  # minimum detection confidence
 EMBEDDING_DIM = 512
 
 logger = logging.getLogger("ai-service")

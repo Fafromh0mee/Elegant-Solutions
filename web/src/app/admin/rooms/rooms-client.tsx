@@ -10,6 +10,7 @@ import {
   X,
   ChevronLeft,
 } from "lucide-react";
+import { AdminPageHeader } from "@/components/admin-page-header";
 import {
   createRoomAction,
   updateRoomAction,
@@ -198,17 +199,15 @@ export function RoomsClient({ initialRooms }: { initialRooms: RoomItem[] }) {
 
   return (
     <div>
+      <AdminPageHeader />
       <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-2xl font-bold">จัดการห้อง</h1>
-          <p className="text-sm text-gray-500 mt-1">
-            {!selectedBuilding
-              ? "เลือกอาคาร"
-              : !selectedFloor
-                ? `อาคาร ${selectedBuilding}: เลือกชั้น`
-                : `อาคาร ${selectedBuilding} • ชั้น ${selectedFloor}: เลือกห้อง`}
-          </p>
-        </div>
+        <p className="text-sm text-gray-500 mt-1">
+          {!selectedBuilding
+            ? "เลือกอาคาร"
+            : !selectedFloor
+              ? `อาคาร ${selectedBuilding}: เลือกชั้น`
+              : `อาคาร ${selectedBuilding} • ชั้น ${selectedFloor}: เลือกห้อง`}
+        </p>
         <div className="flex flex-wrap items-center gap-2">
           {stage !== "building" && (
             <button onClick={goBackOneLevel} className="btn-secondary">

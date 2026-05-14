@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
-import { Plus, Trash2, UserPlus, ScanFace, Edit } from "lucide-react";
+import { useState, useMemo } from "react";
+import { TablePagination } from "@/components/table-pagination";
+import { Plus, Trash2, UserPlus, ScanFace, Edit, Search, X } from "lucide-react";
 import {
   createUserAction,
   deleteUserAction,
@@ -11,6 +12,7 @@ import {
 } from "@/actions/users";
 import type { Role } from "@/lib/types";
 import { CheckCircle, XCircle } from "lucide-react";
+import { AdminPageHeader } from "@/components/admin-page-header";
 
 interface UserItem {
   id: string;
@@ -26,6 +28,25 @@ interface UserItem {
 
 export function UsersClient({ initialUsers }: { initialUsers: UserItem[] }) {
   const [users, setUsers] = useState(initialUsers);
+  const [search, setSearch] = useState("");
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(50);
+
+  const filteredUsers = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return users;
+    return users.filter(
+      (u) =>
+        u.name.toLowerCase().includes(q) ||
+        u.email.toLowerCase().includes(q) ||
+        (u.studentId ?? "").toLowerCase().includes(q),
+    );
+  }, [users, search]);
+
+  const displayedUsers = useMemo(() => {
+    const start = (page - 1) * pageSize;
+    return filteredUsers.slice(start, start + pageSize);
+  }, [filteredUsers, page, pageSize]);
   const [showCreate, setShowCreate] = useState(false);
   const [editingUser, setEditingUser] = useState<UserItem | null>(null);
   const [loading, setLoading] = useState(false);
@@ -166,8 +187,8 @@ export function UsersClient({ initialUsers }: { initialUsers: UserItem[] }) {
 
   return (
     <div>
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold">จัดการผู้ใช้</h1>
+      <AdminPageHeader />
+      <div className="mb-6">
         <button onClick={() => setShowCreate(true)} className="btn-primary">
           <Plus className="h-4 w-4" />
           เพิ่มผู้ใช้
@@ -393,23 +414,55 @@ export function UsersClient({ initialUsers }: { initialUsers: UserItem[] }) {
       )}
 
       {/* Users Table */}
-      <div className="card overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="border-b text-left text-gray-500">
-              <th className="pb-3 pr-4">ชื่อ</th>
-              <th className="pb-3 pr-4">อีเมล</th>
-              <th className="pb-3 pr-4">บทบาท</th>
-              <th className="pb-3 pr-4">สถานะ</th>
-              <th className="pb-3 pr-4">Student ID</th>
-              <th className="pb-3 pr-4">Face</th>
-              <th className="pb-3 pr-4">เบอร์โทร</th>
-              <th className="pb-3 pr-4">วันที่สร้าง</th>
-              <th className="pb-3">จัดการ</th>
-            </tr>
-          </thead>
-          <tbody>
-            {users.map((user) => (
+      <div className="space-y-4">
+        {/* Search */}
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
+          <input
+            type="text"
+            className="input pl-9 pr-9"
+            placeholder="ค้นหาชื่อ, อีเมล, Student ID..."
+            value={search}
+            onChange={(e) => {
+              setSearch(e.target.value);
+              setPage(1);
+            }}
+          />
+          {search && (
+            <button
+              onClick={() => { setSearch(""); setPage(1); }}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          )}
+        </div>
+
+        <TablePagination
+          total={filteredUsers.length}
+          page={page}
+          pageSize={pageSize}
+          onPageChange={setPage}
+          onPageSizeChange={setPageSize}
+        />
+
+        <div className="card overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b text-left text-gray-500">
+                <th className="pb-3 pr-4">ชื่อ</th>
+                <th className="pb-3 pr-4">อีเมล</th>
+                <th className="pb-3 pr-4">บทบาท</th>
+                <th className="pb-3 pr-4">สถานะ</th>
+                <th className="pb-3 pr-4">Student ID</th>
+                <th className="pb-3 pr-4">Face</th>
+                <th className="pb-3 pr-4">เบอร์โทร</th>
+                <th className="pb-3 pr-4">วันที่สร้าง</th>
+                <th className="pb-3">จัดการ</th>
+              </tr>
+            </thead>
+            <tbody>
+              {displayedUsers.map((user) => (
               <tr key={user.id} className="border-b last:border-0">
                 <td className="py-3 pr-4 font-medium">{user.name}</td>
                 <td className="py-3 pr-4">{user.email}</td>
@@ -508,6 +561,7 @@ export function UsersClient({ initialUsers }: { initialUsers: UserItem[] }) {
         {users.length === 0 && (
           <p className="text-center text-gray-500 py-8">ยังไม่มีผู้ใช้</p>
         )}
+        </div>
       </div>
     </div>
   );

@@ -147,6 +147,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Enforce student policy: must have current class schedule or active room registration.
+    let scheduledCheckOut: Date | undefined;
     if (user.role === "STUDENT") {
       const { dayOfWeek, currentTime } = getCurrentDayAndTime();
 
@@ -158,10 +159,11 @@ export async function POST(req: NextRequest) {
           startTime: { lte: currentTime },
           endTime: { gte: currentTime },
         },
-        select: { id: true },
+        select: { id: true, endTime: true },
       });
 
       let hasRegistration = false;
+      let tokenValidTo: Date | null = null;
       if (!currentClass) {
         const now = new Date();
 
@@ -172,11 +174,12 @@ export async function POST(req: NextRequest) {
             validFrom: { lte: now },
             validTo: { gte: now },
           },
-          select: { id: true },
+          select: { id: true, validTo: true },
         });
 
         if (directToken) {
           hasRegistration = true;
+          tokenValidTo = directToken.validTo;
         } else {
           const groupToken = await prisma.accessToken.findFirst({
             where: {
@@ -192,13 +195,24 @@ export async function POST(req: NextRequest) {
                 },
               },
             },
-            select: { id: true },
+            select: { id: true, validTo: true },
           });
 
           if (groupToken) {
             hasRegistration = true;
+            tokenValidTo = groupToken.validTo;
           }
         }
+      }
+
+      // Compute when this session should auto-expire
+      if (currentClass) {
+        const [endHH, endMM] = currentClass.endTime.split(":").map(Number);
+        const d = new Date();
+        d.setHours(endHH, endMM, 0, 0);
+        scheduledCheckOut = d;
+      } else if (tokenValidTo) {
+        scheduledCheckOut = tokenValidTo;
       }
 
       if (!currentClass && !hasRegistration) {
@@ -227,6 +241,7 @@ export async function POST(req: NextRequest) {
     const checkInResult = await checkInAction({
       userId: user.id,
       roomId: room.id,
+      scheduledCheckOut,
     });
 
     if (checkInResult.error && checkInResult.sessionId) {

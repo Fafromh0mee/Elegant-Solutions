@@ -9,6 +9,7 @@ import {
   Download,
 } from "lucide-react";
 import { importClassSchedulesAction } from "@/actions/class-schedules";
+import { AdminPageHeader } from "@/components/admin-page-header";
 
 type Summary = {
   totalSchedules: number;
@@ -66,8 +67,8 @@ export function ScheduleClient({
 
   return (
     <div className="space-y-6">
+      <AdminPageHeader />
       <div>
-        <h1 className="text-2xl font-bold">นำเข้าตารางเรียน</h1>
         <p className="text-sm text-gray-500 mt-1">
           รองรับไฟล์ CSV/XLSX โดยต้องมีคอลัมน์: studentId, roomCode, dayOfWeek,
           startTime, endTime, section, subjectCode

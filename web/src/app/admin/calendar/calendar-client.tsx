@@ -18,6 +18,7 @@ import {
   getAllRoomsForCalendarAction,
 } from "@/actions/calendar";
 import { cn } from "@/lib/utils";
+import { AdminPageHeader } from "@/components/admin-page-header";
 
 // ─── Types ─────────────────────────────────────────────
 interface Booking {
@@ -317,17 +318,12 @@ export function CalendarClient() {
 
   return (
     <div>
+      <AdminPageHeader />
       {/* ─── Top Bar ─── */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-            <CalendarDays className="h-7 w-7 text-purple-600" />
-            ตารางการจองห้อง
-          </h1>
-          <p className="text-sm text-gray-500 mt-1">
-            ภาพรวมการจองและการใช้ห้องทั้งหมด
-          </p>
-        </div>
+        <p className="text-sm text-gray-500">
+          ภาพรวมการจองและการใช้ห้องทั้งหมด
+        </p>
 
         <div className="flex items-center gap-2">
           {/* Filter button */}

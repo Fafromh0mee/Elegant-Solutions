@@ -1,7 +1,9 @@
 "use client";
 
-import { useState } from "react";
-import { BarChart3, Download } from "lucide-react";
+import { useState, useMemo } from "react";
+import { Download } from "lucide-react";
+import { AdminPageHeader } from "@/components/admin-page-header";
+import { TablePagination } from "@/components/table-pagination";
 
 interface SessionItem {
   id: string;
@@ -14,6 +16,13 @@ interface SessionItem {
 
 export function ReportsClient({ sessions }: { sessions: SessionItem[] }) {
   const [loading, setLoading] = useState(false);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(50);
+
+  const displayedSessions = useMemo(() => {
+    const start = (page - 1) * pageSize;
+    return sessions.slice(start, start + pageSize);
+  }, [sessions, page, pageSize]);
 
   async function handleExport() {
     setLoading(true);
@@ -42,11 +51,8 @@ export function ReportsClient({ sessions }: { sessions: SessionItem[] }) {
 
   return (
     <div>
+      <AdminPageHeader />
       <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold">
-          <BarChart3 className="inline h-6 w-6 mr-2" />
-          รายงาน
-        </h1>
         <button
           onClick={handleExport}
           className="btn-primary"
@@ -80,8 +86,15 @@ export function ReportsClient({ sessions }: { sessions: SessionItem[] }) {
       </div>
 
       {/* Sessions Table */}
-      <div className="card overflow-x-auto">
-        <h2 className="text-lg font-semibold mb-4">Sessions ทั้งหมด</h2>
+      <div className="space-y-3">
+        <TablePagination
+          total={sessions.length}
+          page={page}
+          pageSize={pageSize}
+          onPageChange={setPage}
+          onPageSizeChange={setPageSize}
+        />
+        <div className="card overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b text-left text-gray-500">
@@ -94,7 +107,7 @@ export function ReportsClient({ sessions }: { sessions: SessionItem[] }) {
             </tr>
           </thead>
           <tbody>
-            {sessions.map((session) => (
+            {displayedSessions.map((session) => (
               <tr key={session.id} className="border-b last:border-0">
                 <td className="py-3 pr-4">
                   <p className="font-medium">{session.user.name}</p>
@@ -142,6 +155,7 @@ export function ReportsClient({ sessions }: { sessions: SessionItem[] }) {
         {sessions.length === 0 && (
           <p className="text-center text-gray-500 py-8">ยังไม่มีข้อมูล</p>
         )}
+        </div>
       </div>
     </div>
   );

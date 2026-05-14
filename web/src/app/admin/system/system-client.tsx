@@ -2,6 +2,7 @@
 
 import { useMemo, useState, useTransition } from "react";
 import { setMaintenanceModeAction } from "@/actions/system";
+import { TablePagination } from "@/components/table-pagination";
 import {
   ShieldAlert,
   ShieldCheck,
@@ -10,6 +11,7 @@ import {
   AlertTriangle,
   X,
 } from "lucide-react";
+import { AdminPageHeader } from "@/components/admin-page-header";
 
 type AdminUser = {
   id: string;
@@ -44,6 +46,13 @@ export function SystemClient({
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [isPending, startTransition] = useTransition();
+  const [auditPage, setAuditPage] = useState(1);
+  const [auditPageSize, setAuditPageSize] = useState(50);
+
+  const displayedAuditLogs = useMemo(() => {
+    const start = (auditPage - 1) * auditPageSize;
+    return auditLogs.slice(start, start + auditPageSize);
+  }, [auditLogs, auditPage, auditPageSize]);
 
   const activeAdmins = useMemo(
     () => adminUsers.filter((user) => user.status === "APPROVED").length,
@@ -72,12 +81,7 @@ export function SystemClient({
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold">System Control</h1>
-        <p className="text-sm text-gray-500 mt-1">
-          หน้านี้สำหรับ SUPER_ADMIN เพื่อควบคุมสถานะระบบและตรวจสอบ audit log
-        </p>
-      </div>
+      <AdminPageHeader />
 
       {maintenanceMode && (
         <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 flex items-start gap-2">
@@ -217,11 +221,21 @@ export function SystemClient({
         </table>
       </div>
 
-      <div className="card overflow-x-auto">
-        <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
-          <Activity className="h-5 w-5" />
-          Audit / System Logs
-        </h2>
+      <div className="space-y-3">
+        <div className="flex items-center justify-between">
+          <h2 className="text-lg font-semibold flex items-center gap-2">
+            <Activity className="h-5 w-5" />
+            Audit / System Logs
+          </h2>
+        </div>
+        <TablePagination
+          total={auditLogs.length}
+          page={auditPage}
+          pageSize={auditPageSize}
+          onPageChange={setAuditPage}
+          onPageSizeChange={setAuditPageSize}
+        />
+        <div className="card overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b text-left text-gray-500">
@@ -232,7 +246,7 @@ export function SystemClient({
             </tr>
           </thead>
           <tbody>
-            {auditLogs.map((log) => (
+            {displayedAuditLogs.map((log) => (
               <tr key={log.id} className="border-b last:border-0">
                 <td className="py-3 pr-4 text-gray-600 whitespace-nowrap">
                   {new Date(log.createdAt).toLocaleString("th-TH")}
@@ -256,6 +270,7 @@ export function SystemClient({
             )}
           </tbody>
         </table>
+        </div>
       </div>
 
       {confirmTarget !== null && (

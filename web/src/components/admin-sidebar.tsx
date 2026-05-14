@@ -4,36 +4,16 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { signOut, useSession } from "next-auth/react";
 import {
-  LayoutDashboard,
-  Users,
-  DoorOpen,
-  FileText,
-  BarChart3,
-  CalendarDays,
-  Upload,
-  Activity,
   LogOut,
   ChevronLeft,
   ChevronRight,
   Menu,
   X,
   Shield,
-  SlidersHorizontal,
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
-
-const adminLinks = [
-  { href: "/admin/dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/admin/users", label: "จัดการผู้ใช้", icon: Users },
-  { href: "/admin/rooms", label: "จัดการห้อง", icon: DoorOpen },
-  { href: "/admin/calendar", label: "ตารางจองห้อง", icon: CalendarDays },
-  { href: "/admin/schedule", label: "นำเข้าตารางเรียน", icon: Upload },
-  { href: "/admin/tracking", label: "Tracking Agent", icon: Activity },
-  { href: "/admin/system", label: "System Control", icon: SlidersHorizontal },
-  { href: "/admin/logs", label: "ประวัติการใช้งาน", icon: FileText },
-  { href: "/admin/reports", label: "รายงาน", icon: BarChart3 },
-];
+import { adminLinks } from "@/lib/admin-nav";
 
 export function AdminSidebar() {
   const pathname = usePathname();
@@ -119,8 +99,8 @@ export function AdminSidebar() {
         <nav className="flex-1 space-y-1 overflow-y-auto p-3">
           {adminLinks
             .filter((link) => {
-              if (link.href !== "/admin/system") return true;
-              return session?.user?.role === "SUPER_ADMIN";
+              if (!link.requiredRole) return true;
+              return session?.user?.role === link.requiredRole;
             })
             .map((link) => {
               const isActive = pathname === link.href;

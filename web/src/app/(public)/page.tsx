@@ -1,9 +1,11 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import type { ReactNode } from "react";
 import React from "react";
 import { motion } from "framer-motion";
+import { useSession } from "next-auth/react";
 import { Navbar } from "@/components/navbar";
 import {
   Shield,
@@ -19,6 +21,7 @@ import {
   CalendarClock,
   History,
   ChevronDown,
+  Star,
 } from "lucide-react";
 
 // Animation variants
@@ -150,6 +153,8 @@ const faqs = [
 ] as const;
 
 export default function HomePage() {
+  const { data: session } = useSession();
+
   return (
     <div className="min-h-screen">
       <Navbar />
@@ -195,10 +200,13 @@ export default function HomePage() {
             animate={{ opacity: 1, x: 0 }}
             transition={{ duration: 0.8, delay: 0.4 }}
           >
-            <img
+            <Image
               className="w-full h-auto"
               src="https://cdn.aona.co.th/u/nicenathapong/files/7b218a3b4841ab5190d0f423aab526eea8513101990648589b0d3b167dbaa5a6.png"
               alt="hero_image"
+              width={384}
+              height={384}
+              priority
             />
           </motion.div>
         </div>
@@ -208,6 +216,65 @@ export default function HomePage() {
           <div className="absolute inset-0 bg-linear-to-b from-(--color-primary-light) to-transparent" />
         </div>
       </motion.section>
+
+      {/* Quick Actions for Logged In Users */}
+      {session?.user && (
+        <motion.section
+          className="pb-16 bg-white border-y border-gray-100"
+          initial={{ opacity: 0 }}
+          whileInView={{ opacity: 1 }}
+          transition={{ duration: 0.6 }}
+          viewport={{ once: true, amount: 0.2 }}
+        >
+          <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+            <motion.div
+              className="mx-auto max-w-2xl text-center mb-12"
+              variants={fadeInUpVariants}
+              initial="hidden"
+              whileInView="visible"
+              viewport={{ once: true, amount: 0.5 }}
+            ></motion.div>
+
+            <motion.div
+              className="-mt-30 grid grid-cols-1 md:grid-cols-3 gap-6 max-w-5xl p-12 border border-gray-100 rounded-3xl bg-white mx-auto"
+              variants={containerVariants}
+              initial="hidden"
+              whileInView="visible"
+              viewport={{ once: true, amount: 0.2 }}
+            >
+              <motion.div variants={itemVariants}>
+                <QuickActionCard
+                  icon={<DoorOpen className="h-8 w-8" />}
+                  title="จองห้องแลป"
+                  description="จองห้องแลปสำหรับการทำงานของคุณ"
+                  href="/dashboard"
+                  color="bg-blue-50"
+                />
+              </motion.div>
+
+              <motion.div variants={itemVariants}>
+                <QuickActionCard
+                  icon={<CalendarClock className="h-8 w-8" />}
+                  title="ดูตารางเรียน"
+                  description="ตรวจสอบตารางเรียนของคุณ"
+                  href="/dashboard"
+                  color="bg-blue-50"
+                />
+              </motion.div>
+
+              <motion.div variants={itemVariants}>
+                <QuickActionCard
+                  icon={<Star className="h-8 w-8" />}
+                  title="ประเมินเว็บไซต์"
+                  description="แบ่งปันข้อเสนอแนะของคุณ"
+                  href="/survey"
+                  color="bg-blue-50"
+                />
+              </motion.div>
+            </motion.div>
+          </div>
+        </motion.section>
+      )}
 
       {/* Features */}
       <motion.section
@@ -649,5 +716,33 @@ function FaqItem({ question, answer }: { question: string; answer: string }) {
         {answer}
       </motion.p>
     </motion.details>
+  );
+}
+
+function QuickActionCard({
+  icon,
+  title,
+  description,
+  href,
+  color,
+}: {
+  icon: ReactNode;
+  title: string;
+  description: string;
+  href: string;
+  color: string;
+}) {
+  return (
+    <Link href={href}>
+      <div
+        className={`${color} rounded-2xl p-6 h-full border border-gray-200 hover:shadow-lg transition-all duration-200 hover:-translate-y-1 cursor-pointer`}
+      >
+        <div className="flex items-center justify-center h-14 w-14 rounded-xl bg-white text-(--color-primary) mb-4">
+          {icon}
+        </div>
+        <h3 className="text-lg font-semibold text-gray-900 mb-2">{title}</h3>
+        <p className="text-sm text-gray-600">{description}</p>
+      </div>
+    </Link>
   );
 }

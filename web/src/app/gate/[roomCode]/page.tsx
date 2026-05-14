@@ -87,6 +87,10 @@ export default function GatePage({
 
         const users = result.users as VerifiedUser[];
         const roomId = result.roomId as string;
+        const scheduledCheckOut =
+          "scheduledCheckOut" in result && result.scheduledCheckOut instanceof Date
+            ? result.scheduledCheckOut
+            : undefined;
 
         let allSuccess = true;
         let isCheckOut = false;
@@ -95,6 +99,7 @@ export default function GatePage({
           const checkInResult = await checkInAction({
             userId: user.id,
             roomId,
+            scheduledCheckOut,
           });
 
           if (checkInResult.error && checkInResult.sessionId) {

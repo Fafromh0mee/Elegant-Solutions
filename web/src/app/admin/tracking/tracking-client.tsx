@@ -21,6 +21,7 @@ import {
   removeBlacklistAction,
   updateBlacklistAction,
 } from "@/actions/agent";
+import { AdminPageHeader } from "@/components/admin-page-header";
 
 type SnapshotMachine = {
   id: string;
@@ -135,18 +136,8 @@ export function TrackingClient({
   return (
     <div className="space-y-6">
       {/* Header */}
+      <AdminPageHeader />
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-bold flex items-center gap-2">
-            <Activity className="h-6 w-6 text-(--color-cta)" />
-            Tracking Agent Dashboard
-          </h1>
-          <p className="text-sm text-gray-500 mt-1">
-            {lastUpdated
-              ? `อัปเดตล่าสุด ${lastUpdated.toLocaleTimeString("th-TH")}`
-              : "กำลังโหลด..."}
-          </p>
-        </div>
         <button
           onClick={() => refetch()}
           className="btn-secondary"
@@ -218,9 +209,7 @@ export function TrackingClient({
             <tbody>
               {machines.map((m) => (
                 <React.Fragment key={m.id}>
-                  <tr
-                    className="border-b last:border-0 hover:bg-gray-50"
-                  >
+                  <tr className="border-b last:border-0 hover:bg-gray-50">
                     <td className="py-3 pr-4">
                       {m.isOnline ? (
                         <span className="inline-flex items-center gap-1 rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700">
@@ -498,4 +487,3 @@ function MetricCard({
     </div>
   );
 }
-

@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 export async function checkInAction(input: {
   userId: string;
   roomId: string;
+  scheduledCheckOut?: Date;
 }) {
   try {
     // Check if already has active session
@@ -25,6 +26,7 @@ export async function checkInAction(input: {
         userId: input.userId,
         roomId: input.roomId,
         status: "ACTIVE",
+        scheduledCheckOut: input.scheduledCheckOut ?? null,
       },
     });
 
@@ -83,6 +85,39 @@ export async function checkOutAction(input: {
     console.error("Check-out error:", error);
     return { error: "เกิดข้อผิดพลาดในการ Check-out" };
   }
+}
+
+export async function autoCheckoutExpiredSessionsAction(): Promise<{ count: number }> {
+  const now = new Date();
+
+  const expired = await prisma.session.findMany({
+    where: {
+      status: "ACTIVE",
+      scheduledCheckOut: { lt: now },
+    },
+    select: { id: true, userId: true, roomId: true },
+  });
+
+  if (expired.length === 0) return { count: 0 };
+
+  await prisma.$transaction([
+    prisma.session.updateMany({
+      where: { id: { in: expired.map((s) => s.id) } },
+      data: { status: "COMPLETED", checkOut: now },
+    }),
+    ...expired.map((s) =>
+      prisma.log.create({
+        data: {
+          userId: s.userId,
+          roomId: s.roomId,
+          action: "CHECK_OUT",
+          details: "Auto check-out: booking time expired",
+        },
+      }),
+    ),
+  ]);
+
+  return { count: expired.length };
 }
 
 export async function getSessionsAction(filters?: {

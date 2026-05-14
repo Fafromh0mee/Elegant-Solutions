@@ -34,6 +34,15 @@ export async function generateAccessTokenAction(input: {
       return { error: "เวลาสิ้นสุดต้องมากกว่าเวลาเริ่มต้น" };
     }
 
+    const fromMins = validFrom.getHours() * 60 + validFrom.getMinutes();
+    const toMins = validTo.getHours() * 60 + validTo.getMinutes();
+    if (fromMins < 6 * 60 || fromMins >= 20 * 60) {
+      return { error: "เวลาเริ่มต้นต้องอยู่ในช่วง 06:00 – 20:00 น." };
+    }
+    if (toMins > 20 * 60) {
+      return { error: "เวลาสิ้นสุดต้องไม่เกิน 20:00 น." };
+    }
+
     // Check room access
     const room = await prisma.room.findUnique({
       where: { id: input.roomId },
@@ -133,6 +142,7 @@ export async function verifyAccessTokenAction(token: string, roomCode: string) {
       users,
       roomId: accessToken.room.id,
       isGroup: !!accessToken.group,
+      scheduledCheckOut: accessToken.validTo,
     };
   } catch (error) {
     console.error("Verify token error:", error);
@@ -198,6 +208,11 @@ export async function verifyGateAccessAction(identifier: string, roomCode: strin
       return { valid: false, reason: "ไม่พบตารางเรียนที่ตรงกับเวลาปัจจุบัน" };
     }
 
+    // Convert endTime "HH:MM" → today's Date
+    const [endHH, endMM] = schedule.endTime.split(":").map(Number);
+    const scheduledCheckOut = new Date();
+    scheduledCheckOut.setHours(endHH, endMM, 0, 0);
+
     await prisma.log.create({
       data: {
         userId: user.id,
@@ -212,6 +227,7 @@ export async function verifyGateAccessAction(identifier: string, roomCode: strin
       users: [user],
       roomId: room.id,
       isGroup: false,
+      scheduledCheckOut,
     };
   } catch (error) {
     console.error("Verify schedule access error:", error);

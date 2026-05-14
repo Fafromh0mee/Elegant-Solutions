@@ -14,6 +14,11 @@ import {
   X,
   ChevronRight,
   Camera,
+  Focus,
+  SunMedium,
+  Glasses,
+  Hand,
+  ShieldCheck,
   ScanFace,
   CheckCircle2,
   RefreshCw,
@@ -73,6 +78,16 @@ const dayLabel: Record<number, string> = {
 
 const ENABLE_GROUP_UI = false;
 
+const faceCaptureGuides = [
+  { title: "มุมซ้าย", description: "หันซ้ายเล็กน้อย" },
+  { title: "มองตรง", description: "มองตรงเข้ากล้อง" },
+  { title: "มุมขวา", description: "หันขวาเล็กน้อย" },
+];
+
+function getFaceCaptureGuide(index: number) {
+  return faceCaptureGuides[Math.min(index, faceCaptureGuides.length - 1)];
+}
+
 function toDateTimeLocal(date: Date) {
   const y = date.getFullYear();
   const m = String(date.getMonth() + 1).padStart(2, "0");
@@ -82,9 +97,27 @@ function toDateTimeLocal(date: Date) {
   return `${y}-${m}-${d}T${hh}:${mm}`;
 }
 
-export function DashboardClient({ user }: { user: AuthUser }) {
-  const minDateTime = new Date(Date.now() + 60_000).toISOString().slice(0, 16);
+const OPEN_HOUR = 6;
+const CLOSE_HOUR = 20;
 
+function validateOperatingHours(fromStr: string, toStr: string): string | null {
+  const from = new Date(fromStr);
+  const to = new Date(toStr);
+  const fromMins = from.getHours() * 60 + from.getMinutes();
+  const toMins = to.getHours() * 60 + to.getMinutes();
+  if (fromMins < OPEN_HOUR * 60 || fromMins >= CLOSE_HOUR * 60) {
+    return "เวลาเริ่มต้นต้องอยู่ในช่วง 06:00 – 20:00 น.";
+  }
+  if (toMins > CLOSE_HOUR * 60) {
+    return "เวลาสิ้นสุดต้องไม่เกิน 20:00 น.";
+  }
+  return null;
+}
+
+export function DashboardClient({ user }: { user: AuthUser }) {
+  const [minDateTime] = useState(
+    () => new Date(Date.now() + 60_000).toISOString().slice(0, 16),
+  );
   const [rooms, setRooms] = useState<Room[]>([]);
   const [tokens, setTokens] = useState<
     Array<{
@@ -141,10 +174,13 @@ export function DashboardClient({ user }: { user: AuthUser }) {
 
   // Face enrollment states
   const [showFaceEnroll, setShowFaceEnroll] = useState(false);
+  const [showFaceEnrollConfirm, setShowFaceEnrollConfirm] = useState(false);
   const [faceEnrolled, setFaceEnrolled] = useState(false);
   const [faceEnrolledAt, setFaceEnrolledAt] = useState<Date | null>(null);
   const [capturedImages, setCapturedImages] = useState<string[]>([]);
   const [faceStream, setFaceStream] = useState<MediaStream | null>(null);
+  const isFaceCaptureComplete = capturedImages.length >= 3;
+  const currentFaceCaptureGuide = getFaceCaptureGuide(capturedImages.length);
   const faceVideoRef = useRef<HTMLVideoElement>(null);
   const faceCanvasRef = useRef<HTMLCanvasElement>(null);
 
@@ -237,6 +273,20 @@ export function DashboardClient({ user }: { user: AuthUser }) {
       setFaceEnrolledAt(new Date(res.faceProfile.createdAt));
     }
   }
+
+  useEffect(() => {
+    const video = faceVideoRef.current;
+    if (!video) return;
+
+    if (isFaceCaptureComplete) {
+      video.pause();
+      return;
+    }
+
+    if (faceStream) {
+      void video.play().catch(() => {});
+    }
+  }, [faceStream, isFaceCaptureComplete]);
 
   useEffect(() => {
     loadData();
@@ -350,7 +400,12 @@ export function DashboardClient({ user }: { user: AuthUser }) {
   }
 
   async function handleDeleteFace() {
-    if (!confirm("ยืนยันการลบข้อมูลใบหน้า? จะต้องลงทะเบียนใหม่")) return;
+    if (
+      !confirm(
+        "ยืนยันการลบข้อมูลใบหน้าหรือไม่? หากยืนยันคุณจะต้องลงทะเบียนใหม่เพื่อใช้งานระบบสแกนหน้า",
+      )
+    )
+      return;
     const res = await deleteFaceProfileAction();
     if (res.success) {
       setFaceEnrolled(false);
@@ -380,6 +435,12 @@ export function DashboardClient({ user }: { user: AuthUser }) {
 
     if (end <= start) {
       setError("เวลาสิ้นสุดต้องมากกว่าเวลาเริ่มต้น");
+      return;
+    }
+
+    const hoursError = validateOperatingHours(validFrom, validTo);
+    if (hoursError) {
+      setError(hoursError);
       return;
     }
 
@@ -461,6 +522,12 @@ export function DashboardClient({ user }: { user: AuthUser }) {
 
     if (end <= start) {
       setError("เวลาสิ้นสุดต้องมากกว่าเวลาเริ่มต้น");
+      return;
+    }
+
+    const hoursError = validateOperatingHours(validFrom, validTo);
+    if (hoursError) {
+      setError(hoursError);
       return;
     }
 
@@ -822,14 +889,30 @@ export function DashboardClient({ user }: { user: AuthUser }) {
                 {/* Camera */}
                 <div>
                   <div className="relative bg-black rounded-xl overflow-hidden aspect-4/3">
+                    <div className="absolute left-3 top-3 z-10 rounded-full bg-white/90 px-3 py-1 text-xs font-medium text-gray-800 shadow-sm">
+                      {isFaceCaptureComplete
+                        ? "ครบ 3 รูปแล้ว"
+                        : `กำลังถ่าย: ${currentFaceCaptureGuide.title}`}
+                    </div>
                     <video
                       ref={faceVideoRef}
                       autoPlay
                       playsInline
                       muted
-                      className="w-full h-full object-cover"
+                      className={`w-full h-full object-cover ${isFaceCaptureComplete ? "opacity-0" : "opacity-100"}`}
                       style={{ transform: "scaleX(-1)" }}
                     />
+                    {isFaceCaptureComplete && (
+                      <div className="absolute inset-0 z-20 flex items-center justify-center bg-slate-900/90 p-3 text-center">
+                        <div className="rounded-xl border border-white/20 bg-slate-800 px-4 py-3 text-lg font-medium text-white shadow-lg">
+                          <p>กรุณาตรวจสอบและยืนยันรูปใบหน้า</p>
+                          <p className="mt-1 text-sm text-slate-200">
+                            หากพึงพอใจแล้วกดลงทะเบียนใบหน้า
+                            หรือถ่ายใหม่เพื่อเริ่มถ่ายใหม่
+                          </p>
+                        </div>
+                      </div>
+                    )}
                     {/* Face guide overlay */}
                     <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
                       <div className="w-48 h-60 border-2 border-white/40 rounded-[50%]" />
@@ -843,7 +926,8 @@ export function DashboardClient({ user }: { user: AuthUser }) {
                       className="btn-primary flex-1"
                     >
                       <Camera className="h-4 w-4" />
-                      ถ่ายรูป ({capturedImages.length}/3)
+                      ถ่ายรูป {currentFaceCaptureGuide.title} (
+                      {capturedImages.length}/3)
                     </button>
                     <button
                       onClick={() => {
@@ -859,53 +943,172 @@ export function DashboardClient({ user }: { user: AuthUser }) {
                 </div>
 
                 {/* Captured images preview */}
-                <div>
-                  <p className="text-sm font-medium mb-2">
-                    รูปที่ถ่ายไว้ ({capturedImages.length}/3)
-                  </p>
-                  <p className="text-xs text-gray-500 mb-3">
-                    ถ่าย 2–3 รูป จากมุมต่างกันเล็กน้อยเพื่อความแม่นยำ
-                  </p>
-                  <div className="grid grid-cols-3 gap-2 mb-4">
-                    {[0, 1, 2].map((i) => (
-                      <div
-                        key={i}
-                        className="aspect-square bg-gray-100 rounded-lg overflow-hidden border-2 border-dashed border-gray-200 flex items-center justify-center"
-                      >
-                        {capturedImages[i] ? (
-                          // eslint-disable-next-line @next/next/no-img-element
-                          <img
-                            src={capturedImages[i]} // Base64 data URL
-                            alt={`Capture ${i + 1}`}
-                            className="w-full h-full object-cover"
-                            style={{ transform: "scaleX(-1)" }} // Mirror image (เพราะกล้องหน้า)
-                          />
-                        ) : (
-                          <Camera className="h-6 w-6 text-gray-300" />
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                  {capturedImages.length > 0 && (
-                    <div className="space-y-2">
-                      <button
-                        onClick={handleFaceEnroll}
-                        disabled={loading}
-                        className="btn-success w-full"
-                      >
-                        <ScanFace className="h-4 w-4" />
-                        {loading ? "กำลังประมวลผล..." : "ลงทะเบียนใบหน้า"}
-                      </button>
-                      <button
-                        onClick={() => setCapturedImages([])}
-                        className="btn-secondary w-full text-sm"
-                      >
-                        ถ่ายใหม่ทั้งหมด
-                      </button>
+                <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 lg:items-center">
+                  <div className="h-full">
+                    <p className="text-sm font-medium mb-2">
+                      รูปที่ถ่ายไว้ ({capturedImages.length}/3)
+                    </p>
+                    <p className="text-xs text-gray-500 mb-3">
+                      กำลังถ่าย {currentFaceCaptureGuide.title} -{" "}
+                      {currentFaceCaptureGuide.description}
+                    </p>
+                    <div className="flex flex-col gap-2 mb-4">
+                      {faceCaptureGuides.map((guide, i) => (
+                        <div
+                          key={i}
+                          className="relative aspect-video w-full max-w-45 mx-auto bg-gray-100 rounded-lg overflow-hidden border-2 border-dashed border-gray-200 flex items-center justify-center"
+                        >
+                          {capturedImages[i] ? (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img
+                              src={capturedImages[i]} // Base64 data URL
+                              alt={`Capture ${i + 1}`}
+                              className="w-full h-full object-cover"
+                              style={{ transform: "scaleX(-1)" }} // Mirror image (เพราะกล้องหน้า)
+                            />
+                          ) : (
+                            <div className="flex flex-col items-center justify-center gap-1 px-2 text-center">
+                              <Camera className="h-6 w-6 text-gray-300" />
+                              <span className="text-[10px] font-medium text-gray-500 leading-tight">
+                                {guide.title}
+                              </span>
+                              <span className="text-[10px] text-gray-400 leading-tight">
+                                {guide.description}
+                              </span>
+                            </div>
+                          )}
+                          <div className="pointer-events-none absolute left-2 top-2 rounded-full bg-white/90 px-2 py-0.5 text-[10px] font-medium text-gray-600 shadow-sm">
+                            {guide.title}
+                          </div>
+                        </div>
+                      ))}
                     </div>
-                  )}
+                    {capturedImages.length > 0 && (
+                      <div className="space-y-2">
+                        <button
+                          onClick={() => setShowFaceEnrollConfirm(true)}
+                          disabled={loading}
+                          className="btn-success w-full"
+                        >
+                          <ScanFace className="h-4 w-4" />
+                          {loading ? "กำลังประมวลผล..." : "ลงทะเบียนใบหน้า"}
+                        </button>
+                        <div className="grid grid-cols-2 gap-2">
+                          <button
+                            onClick={() =>
+                              setCapturedImages(capturedImages.slice(0, -1))
+                            }
+                            className="btn-secondary text-sm"
+                          >
+                            ถ่ายรูปล่าสุดใหม่
+                          </button>
+                          <button
+                            onClick={() => setCapturedImages([])}
+                            className="btn-secondary text-sm"
+                          >
+                            ถ่ายใหม่ทั้งหมด
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="h-full self-center rounded-lg border border-blue-100 bg-blue-50/70 p-3 text-xs text-blue-900">
+                    <p className="mb-2 text-base font-semibold sm:text-lg">
+                      คำแนะนำการลงทะเบียนในหน้า
+                    </p>
+                    <div className="space-y-3">
+                      <div className="rounded-lg bg-white/80 p-3">
+                        <p className="flex items-center gap-2 font-medium">
+                          <Focus className="h-4 w-4 shrink-0 text-blue-600" />
+                          มองตรงไปที่กล้อง
+                        </p>
+                        <p className="mt-1">ให้ใบหน้าอยู่ตรงกลางกรอบ</p>
+                      </div>
+                      <div className="rounded-lg bg-white/80 p-3">
+                        <p className="flex items-center gap-2 font-medium">
+                          <SunMedium className="h-4 w-4 shrink-0 text-blue-600" />
+                          แสงสว่างเพียงพอ
+                        </p>
+                        <p className="mt-1">หลีกเลี่ยงแสงสว่างจ้าหรือแสงย้อน</p>
+                      </div>
+                      <div className="rounded-lg bg-white/80 p-3">
+                        <p className="flex items-center gap-2 font-medium">
+                          <Glasses className="h-4 w-4 shrink-0 text-blue-600" />
+                          ไม่สวมหมวกหรือแว่นตา
+                        </p>
+                        <p className="mt-1">ถอดหมวก แว่นตา หน้ากาก ออก</p>
+                      </div>
+                      <div className="rounded-lg bg-white/80 p-3">
+                        <p className="flex items-center gap-2 font-medium">
+                          <Hand className="h-4 w-4 shrink-0 text-blue-600" />
+                          แสดงใบหน้าให้ชัดเจน
+                        </p>
+                        <p className="mt-1">ไม่ปิดบังใบหน้าด้วยเส้นผมหรือมือ</p>
+                      </div>
+                      <div className="rounded-lg border border-blue-200 bg-blue-100/80 p-3 text-[11px] leading-relaxed text-blue-900">
+                        <p className="flex items-center gap-2 font-medium">
+                          <ShieldCheck className="h-4 w-4 shrink-0 text-blue-600" />
+                          เพื่อความปลอดภัยของคุณ
+                        </p>
+                        <p className="mt-1">
+                          ระบบจะใช้รูปภาพเพื่อยืนยันตัวตนเท่านั้น
+                          ข้อมูลจะถูกเข้ารหัสอย่างปลอดภัย
+                        </p>
+                      </div>
+                    </div>
+                  </div>
                 </div>
               </div>
+
+              {showFaceEnrollConfirm && (
+                <div
+                  className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+                  onClick={() => setShowFaceEnrollConfirm(false)}
+                >
+                  <div
+                    className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <div className="flex items-start gap-3">
+                      <div className="rounded-full bg-blue-100 p-2 text-blue-600">
+                        <ScanFace className="h-5 w-5" />
+                      </div>
+                      <div className="flex-1">
+                        <h3 className="text-lg font-semibold text-gray-900">
+                          ยืนยันการลงทะเบียนใบหน้า
+                        </h3>
+                        <p className="mt-2 text-sm text-gray-600">
+                          คุณต้องการยืนยันเพื่อลงทะเบียนใบหน้าหรือไม่
+                        </p>
+                        <p className="mt-1 text-sm text-gray-500">
+                          หากยืนยัน ระบบจะส่งรูปที่ถ่ายไว้ไปลงทะเบียนทันที
+                        </p>
+                      </div>
+                    </div>
+                    <div className="mt-5 flex gap-2">
+                      <button
+                        type="button"
+                        className="btn-secondary"
+                        onClick={() => setShowFaceEnrollConfirm(false)}
+                      >
+                        ย้อนกลับ
+                      </button>
+                      <button
+                        type="button"
+                        className="btn-primary flex-1"
+                        disabled={loading}
+                        onClick={async () => {
+                          setShowFaceEnrollConfirm(false);
+                          await handleFaceEnroll();
+                        }}
+                      >
+                        {loading ? "กำลังบันทึก..." : "ยืนยันและลงทะเบียน"}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -1087,8 +1290,7 @@ export function DashboardClient({ user }: { user: AuthUser }) {
                 </div>
               </div>
               <p className="text-xs text-gray-500">
-                แนะนำ: ระบบตั้งค่าเริ่มในอีก 5 นาที และสิ้นสุด 1
-                ชั่วโมงให้อัตโนมัติ (ปรับเองได้)
+                ⏰ ระบบเปิดให้บริการ 06:00 – 20:00 น. เท่านั้น
               </p>
               <button
                 type="submit"
@@ -1347,6 +1549,9 @@ export function DashboardClient({ user }: { user: AuthUser }) {
                   />
                 </div>
               </div>
+              <p className="text-xs text-gray-500">
+                ⏰ ระบบเปิดให้บริการ 06:00 – 20:00 น. เท่านั้น
+              </p>
               <button
                 type="submit"
                 className="btn-primary w-full"

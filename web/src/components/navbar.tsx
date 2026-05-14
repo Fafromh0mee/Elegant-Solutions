@@ -98,7 +98,7 @@ export function Navbar() {
             <NavLink href="/" active={isActive("/")}>
               หน้าหลัก
             </NavLink>
-            <NavLink href="/#contact" active={false}>
+            <NavLink href="/contact" active={isActive("/contact")}>
               ติดต่อเรา
             </NavLink>
 
@@ -161,7 +161,7 @@ export function Navbar() {
             <MobileLink href="/" onClick={() => setMobileOpen(false)}>
               หน้าหลัก
             </MobileLink>
-            <MobileLink href="/#contact" onClick={() => setMobileOpen(false)}>
+            <MobileLink href="/contact" onClick={() => setMobileOpen(false)}>
               ติดต่อเรา
             </MobileLink>
             {session?.user ? (

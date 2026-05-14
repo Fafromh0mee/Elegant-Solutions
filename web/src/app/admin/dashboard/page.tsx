@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { Users, DoorOpen, FileText, Activity } from "lucide-react";
+import { AdminPageHeader } from "@/components/admin-page-header";
 
 export default async function AdminDashboardPage() {
   const [userCount, roomCount, activeSessionCount, logCount] =
@@ -21,7 +22,7 @@ export default async function AdminDashboardPage() {
 
   return (
     <div>
-      <h1 className="text-2xl font-bold mb-6">Admin Dashboard</h1>
+      <AdminPageHeader />
 
       {/* Stats */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">

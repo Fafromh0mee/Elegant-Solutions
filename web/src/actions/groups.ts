@@ -136,6 +136,15 @@ export async function generateGroupTokenAction(input: {
       return { error: "เวลาสิ้นสุดต้องมากกว่าเวลาเริ่มต้น" };
     }
 
+    const fromMins = validFrom.getHours() * 60 + validFrom.getMinutes();
+    const toMins = validTo.getHours() * 60 + validTo.getMinutes();
+    if (fromMins < 6 * 60 || fromMins >= 20 * 60) {
+      return { error: "เวลาเริ่มต้นต้องอยู่ในช่วง 06:00 – 20:00 น." };
+    }
+    if (toMins > 20 * 60) {
+      return { error: "เวลาสิ้นสุดต้องไม่เกิน 20:00 น." };
+    }
+
     const group = await prisma.group.findUnique({
       where: { id: input.groupId },
     });
