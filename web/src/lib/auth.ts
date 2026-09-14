@@ -1,0 +1,176 @@
+import NextAuth from "next-auth";
+import Credentials from "next-auth/providers/credentials";
+import Google from "next-auth/providers/google";
+import { compare, hash } from "bcryptjs";
+import { randomUUID } from "crypto";
+import { prisma } from "@/lib/prisma";
+import type { AccountStatus, Role } from "@/lib/types";
+
+declare module "next-auth" {
+  interface User {
+    role: Role;
+    status: AccountStatus;
+    studentId?: string | null;
+  }
+  interface Session {
+    user: {
+      id: string;
+      email: string;
+      name: string;
+      role: Role;
+      status: AccountStatus;
+      studentId?: string | null;
+      image?: string | null;
+    };
+  }
+}
+
+type SessionToken = {
+  id?: string;
+  role?: Role;
+  status?: AccountStatus;
+  studentId?: string | null;
+};
+
+export const { handlers, signIn, signOut, auth } = NextAuth({
+  providers: [
+    Google({
+      clientId: process.env.GOOGLE_CLIENT_ID,
+      clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+    }),
+    Credentials({
+      name: "credentials",
+      credentials: {
+        email: { label: "Email", type: "email" },
+        password: { label: "Password", type: "password" },
+      },
+      async authorize(credentials) {
+        if (!credentials?.email || !credentials?.password) {
+          return null;
+        }
+
+        const user = await prisma.user.findUnique({
+          where: { email: credentials.email as string },
+        });
+
+        if (!user) return null;
+
+        if (!user.hashedPassword) return null;
+
+        const isValid = await compare(
+          credentials.password as string,
+          user.hashedPassword
+        );
+
+        if (!isValid) return null;
+
+        return {
+          id: user.id,
+          email: user.email,
+          name: user.name,
+          role: user.role,
+          status: user.status,
+          studentId: user.studentId,
+        };
+      },
+    }),
+  ],
+  callbacks: {
+    async signIn({ user, account, profile }) {
+      if (account?.provider !== "google") {
+        return true;
+      }
+
+      const email = user.email ?? profile?.email;
+      if (!email) {
+        return false;
+      }
+
+      const existing = await prisma.user.findUnique({
+        where: { email },
+      });
+
+      if (!existing) {
+        const newUserId = `u_${randomUUID().replace(/-/g, "")}`;
+        const oauthOnlyPassword = await hash(randomUUID(), 12);
+
+        // Auto-approve as STUDENT only for university email domains; anyone
+        // else signs up as a regular GUEST pending admin approval.
+        const allowedDomains = (process.env.ALLOWED_STUDENT_EMAIL_DOMAINS || "")
+          .split(",")
+          .map((d) => d.trim().toLowerCase())
+          .filter(Boolean);
+        const emailDomain = email.split("@")[1]?.toLowerCase() ?? "";
+        const isAllowedStudentDomain = allowedDomains.includes(emailDomain);
+
+        const newRole: Role = isAllowedStudentDomain ? "STUDENT" : "GUEST";
+        const newStatus: AccountStatus = isAllowedStudentDomain
+          ? "APPROVED"
+          : "PENDING";
+
+        const createdRows = await prisma.$queryRaw<
+          Array<{ id: string; role: Role; status: AccountStatus }>
+        >`
+          INSERT INTO users (id, email, name, "hashedPassword", role, status, "createdAt", "updatedAt")
+          VALUES (
+            ${newUserId},
+            ${email},
+            ${user.name || "Student"},
+            ${oauthOnlyPassword},
+            ${newRole}::"Role",
+            ${newStatus}::"AccountStatus",
+            NOW(),
+            NOW()
+          )
+          RETURNING id, role::text AS role, status::text AS status
+        `;
+
+        const created = createdRows[0];
+
+        if (!created) {
+          return false;
+        }
+
+        user.id = created.id;
+        user.role = created.role;
+        user.status = created.status;
+        user.studentId = null;
+        return true;
+      }
+
+      // Keep the user's existing role/status as-is — no longer force
+      // non-admins back to STUDENT on every login.
+      user.id = existing.id;
+      user.role = existing.role;
+      user.status = existing.status;
+      user.studentId = existing.studentId;
+      return true;
+    },
+    async jwt({ token, user }) {
+      const sessionToken = token as SessionToken;
+      if (user) {
+        sessionToken.id = user.id as string;
+        sessionToken.role = (user as { role: Role }).role;
+        sessionToken.status = (user as { status: AccountStatus }).status;
+        sessionToken.studentId = (user as { studentId?: string | null }).studentId ?? null;
+      }
+      return token;
+    },
+    async session({ session, token }) {
+      const sessionToken = token as SessionToken;
+      if (sessionToken) {
+        session.user.id = sessionToken.id as string;
+        session.user.role = sessionToken.role as Role;
+        session.user.status = sessionToken.status as AccountStatus;
+        session.user.studentId = sessionToken.studentId ?? null;
+      }
+      return session;
+    },
+  },
+  pages: {
+    signIn: "/login",
+  },
+  session: {
+    strategy: "jwt",
+  },
+});

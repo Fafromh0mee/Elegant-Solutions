@@ -1,0 +1,2 @@
+-- RenameIndex
+ALTER INDEX "class_schedules_userId_roomId_dayOfWeek_startTime_endTime_semes" RENAME TO "class_schedules_userId_roomId_dayOfWeek_startTime_endTime_s_key";

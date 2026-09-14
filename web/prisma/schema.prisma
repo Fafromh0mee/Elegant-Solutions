@@ -1,0 +1,299 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Role {
+  GUEST
+  STUDENT
+  ADMIN
+  SUPER_ADMIN
+}
+
+enum AccountStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum SessionStatus {
+  ACTIVE
+  COMPLETED
+}
+
+enum RequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  CANCELLED
+}
+
+enum LogAction {
+  CHECK_IN
+  CHECK_OUT
+  ACCESS_DENIED
+  TOKEN_GENERATED
+  GROUP_CREATED
+  USER_CREATED
+  ROOM_CREATED
+  ROOM_UPDATED
+  USER_UPDATED
+  USER_APPROVED
+  USER_REJECTED
+  FACE_ENROLLED
+  FACE_VERIFIED
+  FACE_DENIED
+  SCHEDULE_ACCESS
+  SCHEDULE_MODIFIED
+}
+
+model User {
+  id             String   @id @default(cuid())
+  email          String   @unique
+  name           String
+  hashedPassword String?
+  role           Role     @default(GUEST)
+  status         AccountStatus @default(APPROVED)
+  studentId      String?  @unique
+  faculty        String?
+  major          String?
+  phone          String?
+  avatarUrl      String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  // Relations
+  accessTokens   AccessToken[]
+  sessions       Session[]
+  logs           Log[]
+  ownedGroups    Group[]        @relation("GroupOwner")
+  groupMembers   GroupMember[]
+  faceProfile    FaceProfile?
+  classSchedules ClassSchedule[]
+  agentLogs      AgentLog[]
+
+  @@map("users")
+}
+
+model Room {
+  id          String   @id @default(cuid())
+  name        String
+  roomCode    String   @unique
+  description String?
+  capacity    Int      @default(0)
+  guestAccess Boolean  @default(false)
+  staffOnly   Boolean  @default(false)
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  accessTokens  AccessToken[]
+  sessions      Session[]
+  logs          Log[]
+  classSchedules ClassSchedule[]
+  agentMachines AgentMachine[]
+
+  @@map("rooms")
+}
+
+model AccessToken {
+  id        String   @id @default(cuid())
+  token     String   @unique @default(cuid())
+  userId    String
+  roomId    String
+  groupId   String?
+  validFrom DateTime
+  validTo   DateTime
+  isUsed    Boolean  @default(false)
+  status    RequestStatus @default(PENDING)
+  createdAt DateTime @default(now())
+
+  // Relations
+  user  User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  room  Room   @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  group Group? @relation(fields: [groupId], references: [id], onDelete: SetNull)
+
+  @@map("access_tokens")
+}
+
+model Group {
+  id        String   @id @default(cuid())
+  name      String
+  code      String   @unique @default(cuid())
+  ownerId   String
+  createdAt DateTime @default(now())
+
+  // Relations
+  owner        User          @relation("GroupOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  members      GroupMember[]
+  accessTokens AccessToken[]
+
+  @@map("groups")
+}
+
+model GroupMember {
+  id       String @id @default(cuid())
+  groupId  String
+  userId   String
+  joinedAt DateTime @default(now())
+
+  // Relations
+  group Group @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([groupId, userId])
+  @@map("group_members")
+}
+
+model Session {
+  id                  String        @id @default(cuid())
+  userId              String
+  roomId              String
+  checkIn             DateTime      @default(now())
+  checkOut            DateTime?
+  scheduledCheckOut   DateTime?
+  status              SessionStatus @default(ACTIVE)
+  createdAt           DateTime      @default(now())
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  room Room @relation(fields: [roomId], references: [id], onDelete: Cascade)
+
+  @@map("sessions")
+}
+
+model Log {
+  id        String    @id @default(cuid())
+  userId    String?
+  roomId    String?
+  action    LogAction
+  details   String?
+  createdAt DateTime  @default(now())
+
+  // Relations
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+  room Room? @relation(fields: [roomId], references: [id], onDelete: SetNull)
+
+  @@map("logs")
+}
+
+model ClassSchedule {
+  id          String   @id @default(cuid())
+  userId      String
+  roomId      String
+  dayOfWeek   Int      // 0=Sunday … 6=Saturday
+  startTime   String   // "HH:MM" 24-hour
+  endTime     String   // "HH:MM" 24-hour
+  section     String?
+  subjectName String?
+  subjectCode String?
+  semester    String?
+  createdAt   DateTime @default(now())
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  room Room @relation(fields: [roomId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, roomId, dayOfWeek, startTime, endTime, semester])
+  @@index([userId, semester, dayOfWeek, startTime, endTime])
+  @@index([userId, semester, subjectCode])
+  @@map("class_schedules")
+}
+
+model FaceProfile {
+  id           String   @id @default(cuid())
+  userId       String   @unique
+  embedding    Float[]
+  modelVersion String   @default("buffalo_l")
+  qualityScore Float?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("face_profiles")
+}
+
+model SystemSetting {
+  key       String   @id
+  value     String
+  updatedAt DateTime @updatedAt
+
+  @@map("system_settings")
+}
+
+model AgentMachine {
+  id          String    @id @default(cuid())
+  machineCode String    @unique
+  hostname    String
+  roomId      String?
+  apiKey      String    @unique @default(cuid())
+  lastSeen    DateTime?
+  isActive    Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+
+  room      Room?      @relation(fields: [roomId], references: [id], onDelete: SetNull)
+  agentLogs AgentLog[]
+
+  @@map("agent_machines")
+}
+
+model AgentLog {
+  id          String   @id @default(cuid())
+  machineId   String
+  userId      String?
+  activeApp   String?
+  activeTitle String?
+  riskLevel   String   @default("NORMAL")
+  createdAt   DateTime @default(now())
+
+  machine AgentMachine @relation(fields: [machineId], references: [id], onDelete: Cascade)
+  user    User?        @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([machineId, createdAt])
+  @@map("agent_logs")
+}
+
+model AgentBlacklist {
+  id        String   @id @default(cuid())
+  pattern   String   @unique
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  @@map("agent_blacklist")
+}
+
+// Public /contact form submissions.
+model ContactMessage {
+  id        String   @id @default(cuid())
+  name      String
+  email     String
+  phone     String?
+  subject   String
+  message   String
+  isRead    Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@map("contact_messages")
+}
+
+// Public /survey form submissions. The form collects 5 independent 1-5
+// star ratings (any of which may be skipped) plus an optional comment —
+// not a single overall score — so each category is its own nullable field.
+model SurveyResponse {
+  id             String   @id @default(cuid())
+  overallRating  Int?
+  designRating   Int?
+  speedRating    Int?
+  securityRating Int?
+  contentRating  Int?
+  comment        String?
+  createdAt      DateTime @default(now())
+
+  @@map("survey_responses")
+}

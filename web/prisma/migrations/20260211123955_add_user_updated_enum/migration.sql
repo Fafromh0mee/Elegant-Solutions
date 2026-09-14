@@ -1,0 +1,2 @@
+-- AlterEnum
+ALTER TYPE "LogAction" ADD VALUE 'USER_UPDATED';

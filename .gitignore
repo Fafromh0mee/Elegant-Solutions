@@ -1,0 +1,22 @@
+# OS
+.DS_Store
+Thumbs.db
+
+# IDEs
+.vscode/settings.json
+.idea/
+
+# Claude Code local settings
+.claude/settings.local.json
+
+# Environment
+.env
+.env.*
+!.env.example
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+
+/agent/config.json
