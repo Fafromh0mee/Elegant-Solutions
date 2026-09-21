@@ -188,3 +188,29 @@ export function slotForInstant(at: Date): AcademicSlot | null {
 
   return match?.slot ?? null;
 }
+
+/** "YYYY-MM-DD" plus a number of calendar days (may be negative). Pure calendar math. */
+export function addAcademicDays(date: string, days: number): string {
+  const { year, month, dayOfMonth } = parseAcademicDate(date);
+  const shifted = new Date(Date.UTC(year, month - 1, dayOfMonth + days));
+  return `${shifted.getUTCFullYear()}-${pad(shifted.getUTCMonth() + 1)}-${pad(shifted.getUTCDate())}`;
+}
+
+/**
+ * True when the slots are one unbroken run of the standard grid, e.g. SLOT_2+SLOT_3.
+ * Order of the input does not matter; duplicates, unknown slots and gaps do.
+ * Shared by Room Finder and booking creation (Feature 7).
+ */
+export function isContiguousSlotSelection(slots: readonly string[]): boolean {
+  if (slots.length === 0) return false;
+  if (!slots.every(isAcademicSlot)) return false;
+  if (new Set(slots).size !== slots.length) return false;
+
+  const orders = slots.map((slot) => getSlotDefinition(slot as AcademicSlot).order).sort((a, b) => a - b);
+  return orders.every((order, index) => index === 0 || order === orders[index - 1] + 1);
+}
+
+/** True once the slot on that Asia/Bangkok date has finished at `now`. */
+export function hasSlotEnded(date: string, slot: AcademicSlot, now: Date): boolean {
+  return resolveSlotRange(date, slot).endAt.getTime() <= now.getTime();
+}

@@ -265,3 +265,30 @@ export function getSignInErrorMessage(code: string): string {
       return "เข้าสู่ระบบไม่สำเร็จ กรุณาลองใหม่";
   }
 }
+
+export function getRoomFinderErrorMessage(code: string): string {
+  switch (code) {
+    case "INVALID_PARTY_SIZE":
+      return "กรุณาระบุจำนวนผู้ใช้งานเป็นจำนวนเต็มตั้งแต่ 1 คนขึ้นไป";
+    case "INVALID_DATE":
+      return "วันที่ไม่ถูกต้อง";
+    case "DATE_OUT_OF_RANGE":
+      return "ค้นหาได้ตั้งแต่วันนี้ถึงล่วงหน้า 30 วัน";
+    case "NO_SLOTS":
+      return "กรุณาเลือกคาบอย่างน้อย 1 คาบ";
+    case "INVALID_SLOT":
+      return "คาบที่เลือกไม่ถูกต้อง";
+    case "SLOTS_NOT_CONTIGUOUS":
+      return "กรุณาเลือกคาบที่ต่อเนื่องกัน";
+    case "SLOT_ENDED":
+      return "คาบที่เลือกสิ้นสุดไปแล้ว กรุณาเลือกคาบถัดไปหรือวันอื่น";
+    case "INVALID_CAPABILITY":
+      return "ประเภทพื้นที่ไม่ถูกต้อง";
+    case "INVALID_BUILDING":
+      return "อาคารไม่ถูกต้อง";
+    case "INVALID_FLOOR":
+      return "ชั้นไม่ถูกต้อง";
+    default:
+      return "เกิดข้อผิดพลาด";
+  }
+}

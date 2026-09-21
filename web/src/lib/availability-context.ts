@@ -6,6 +6,7 @@ import {
   evaluateAvailability,
   summarizeBookingCapacity,
   type AvailabilityRequest,
+  type AvailabilityStatus,
   type AvailabilityRoom,
   type ClassContext,
   type ClosureContext,
@@ -13,7 +14,7 @@ import {
   type RoomAvailabilityResult,
   type RoomSearchFilters,
 } from "@/lib/availability";
-import type { AcademicSlot, BookingStatus } from "@/lib/types";
+import type { AcademicSlot, BookingStatus, RoomCapability } from "@/lib/types";
 
 // Data layer for the availability engine: loads context from Prisma and hands
 // every decision to the pure evaluator in @/lib/availability. Any filtering done
@@ -207,12 +208,22 @@ export interface RoomSearchOutcome {
   results: RoomAvailabilityResult[];
   /** True when more rooms matched than were evaluated or returned. */
   truncated: boolean;
+  /** True when the SQL candidate cap was hit, so statusCounts cover only the evaluated rooms. */
+  candidatesTruncated: boolean;
+  /** How many evaluated candidates ended in each status, before onlyAvailable/limit. */
+  statusCounts: Partial<Record<AvailabilityStatus, number>>;
 }
 
-/** Room Finder search: prefilter in SQL, evaluate every candidate, then limit. */
+export interface RoomSearchOptions {
+  /** Result order, applied before the limit. Default: roomCode (the query order). */
+  compare?: (a: RoomAvailabilityResult, b: RoomAvailabilityResult) => number;
+}
+
+/** Room Finder search: prefilter in SQL, evaluate every candidate, then order, then limit. */
 export async function searchRoomAvailability(
   request: AvailabilityRequest,
-  filters: RoomSearchFilters
+  filters: RoomSearchFilters,
+  options: RoomSearchOptions = {}
 ): Promise<RoomSearchOutcome> {
   const dayOfWeek = academicDateToDayOfWeek(request.date);
 
@@ -241,9 +252,49 @@ export async function searchRoomAvailability(
   const contexts = await loadRoomAvailabilityContexts(evaluated, request);
   const all = contexts.map((context) => evaluateAvailability(context, request));
   const matching = filters.onlyAvailable ? all.filter((result) => result.available) : all;
+  const ordered = options.compare ? [...matching].sort(options.compare) : matching;
+
+  const statusCounts: Partial<Record<AvailabilityStatus, number>> = {};
+  for (const result of all) {
+    statusCounts[result.status] = (statusCounts[result.status] ?? 0) + 1;
+  }
 
   return {
-    results: matching.slice(0, filters.limit),
+    results: ordered.slice(0, filters.limit),
     truncated: candidatesTruncated || matching.length > filters.limit,
+    candidatesTruncated,
+    statusCounts,
   };
+}
+
+/** Rooms that are "configured and bookable" for a capability - the only proof that none exist. */
+function bookableRoomWhere(): Prisma.RoomWhereInput {
+  return {
+    isActive: true,
+    bookingEnabled: true,
+    capacity: { gt: 0 },
+    capabilities: { isEmpty: false },
+    availabilityWindows: { some: {} },
+  };
+}
+
+/** Distinct building/floor pairs of active, bookable rooms - Room Finder location options. */
+export async function listBookableLocations(): Promise<Array<{ building: string; floor: number | null }>> {
+  const rows = await prisma.room.findMany({
+    where: { ...bookableRoomWhere(), building: { not: null } },
+    distinct: ["building", "floor"],
+    select: { building: true, floor: true },
+    orderBy: [{ building: "asc" }, { floor: "asc" }],
+  });
+  return rows.map((row) => ({ building: row.building as string, floor: row.floor }));
+}
+
+/**
+ * Rooms of a capability that could ever appear in a search, on any date or slot.
+ * Zero is the only thing that justifies a capability-specific empty state.
+ */
+export async function countBookableRoomsWithCapability(capability: RoomCapability): Promise<number> {
+  return prisma.room.count({
+    where: { ...bookableRoomWhere(), capabilities: { has: capability } },
+  });
 }

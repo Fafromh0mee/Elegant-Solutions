@@ -42,6 +42,8 @@ import {
 } from "@/actions/profile";
 import { getMyClassSchedulesAction } from "@/actions/class-schedules";
 import { getRoleLabel } from "@/lib/ui-terms";
+import { canUseRoomFinder } from "@/lib/permissions";
+import { RoomFinderEntry } from "@/components/room-finder-entry";
 import type { AuthUser } from "@/lib/types";
 import QRCode from "qrcode";
 
@@ -290,9 +292,11 @@ export function DashboardClient({ user }: { user: AuthUser }) {
   }, [faceStream, isFaceCaptureComplete]);
 
   useEffect(() => {
-    loadData();
-    loadFaceStatus();
-    loadStudentMeta();
+    // Initial load. Every loader awaits before setting state, so nothing here
+    // updates state synchronously inside the effect.
+    void (async () => {
+      await Promise.all([loadData(), loadFaceStatus(), loadStudentMeta()]);
+    })();
   }, []);
 
   function handleStudentIdSubmit(e: React.FormEvent) {
@@ -1114,6 +1118,8 @@ export function DashboardClient({ user }: { user: AuthUser }) {
           )}
         </div>
       )}
+
+      {canUseRoomFinder(user.role) && <RoomFinderEntry />}
 
       {/* Quick Actions */}
       <div
