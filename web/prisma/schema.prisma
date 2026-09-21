@@ -24,6 +24,37 @@ enum SessionStatus {
   COMPLETED
 }
 
+enum RoomCapability {
+  CLASSROOM
+  LAB
+  MEETING
+  WORKSHOP
+  EVENT
+}
+
+// Per-room approval policy for ad-hoc bookings.
+// Only consulted when Room.bookingEnabled is true.
+enum RoomApprovalPolicy {
+  AUTO
+  MANUAL
+}
+
+// Standard university teaching periods.
+// Slot TIMES are not stored here - see web/src/lib/academic-slots.ts.
+enum AcademicSlot {
+  SLOT_1
+  SLOT_2
+  SLOT_3
+  SLOT_4
+}
+
+enum BookingStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  CANCELLED
+}
+
 enum LogAction {
   CHECK_IN
   CHECK_OUT
@@ -40,6 +71,10 @@ enum LogAction {
   FACE_VERIFIED
   FACE_DENIED
   SCHEDULE_ACCESS
+  ROOM_BOOKING_CREATED
+  ROOM_BOOKING_APPROVED
+  ROOM_BOOKING_REJECTED
+  ROOM_BOOKING_CANCELLED
 }
 
 model User {
@@ -66,6 +101,9 @@ model User {
   faceProfile    FaceProfile?
   classSchedules ClassSchedule[]
   agentLogs      AgentLog[]
+  roomBookings     RoomBooking[] @relation("BookingRequester")
+  bookingDecisions RoomBooking[] @relation("BookingDecider")
+  roomClosures     RoomClosure[] @relation("ClosureCreator")
 
   @@map("users")
 }
@@ -82,12 +120,29 @@ model Room {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
+  building String?
+  floor    Int?
+
+  // Empty means "capabilities not configured", NOT "suitable for anything".
+  // A room with no capabilities matches no capability filter.
+  capabilities RoomCapability[] @default([])
+
+  // Opt-in to ad-hoc self-service booking. DISTINCT from isActive:
+  //   isActive       = the room is operational at all (classes, gate access).
+  //   bookingEnabled = the room accepts ad-hoc RoomBookings.
+  // A room can be operational for scheduled classes but not self-service bookable.
+  bookingEnabled Boolean            @default(false)
+  approvalPolicy RoomApprovalPolicy @default(AUTO)
+
   // Relations
   accessTokens  AccessToken[]
   sessions      Session[]
   logs          Log[]
   classSchedules ClassSchedule[]
   agentMachines AgentMachine[]
+  bookings            RoomBooking[]
+  closures            RoomClosure[]
+  availabilityWindows RoomAvailabilityWindow[]
 
   @@map("rooms")
 }
@@ -185,6 +240,10 @@ model ClassSchedule {
   semester    String?
   createdAt   DateTime @default(now())
 
+  // Nullable on purpose: rows whose times do not align to the academic grid
+  // keep only startTime/endTime. Consumers must handle null.
+  slot AcademicSlot?
+
   // Relations
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
   room Room @relation(fields: [roomId], references: [id], onDelete: Cascade)
@@ -192,6 +251,7 @@ model ClassSchedule {
   @@unique([userId, roomId, dayOfWeek, startTime, endTime, semester])
   @@index([userId, semester, dayOfWeek, startTime, endTime])
   @@index([userId, semester, subjectCode])
+  @@index([roomId, semester, dayOfWeek, slot])
   @@map("class_schedules")
 }
 
@@ -257,4 +317,103 @@ model AgentBlacklist {
   createdAt DateTime @default(now())
 
   @@map("agent_blacklist")
+}
+
+// An ad-hoc room booking.
+//
+// DELIBERATELY UNRELATED to ClassSchedule. A scheduled class is not a booking and
+// must never enter the approval queue: the queue is `RoomBooking status = PENDING`,
+// and no class_schedules row can appear in this table. The two domains share only
+// the AcademicSlot vocabulary.
+model RoomBooking {
+  id             String        @id @default(cuid())
+  roomId         String
+  userId         String
+  // The Asia/Bangkok calendar day booked. DATE has no timezone by design.
+  date           DateTime      @db.Date
+  // Expected number of users, for capacity checks.
+  partySize      Int
+  purpose        String?
+  status         BookingStatus @default(PENDING)
+  // null together with APPROVED means auto-approved under an AUTO room policy.
+  decidedById    String?
+  decidedAt      DateTime?     @db.Timestamptz(3)
+  decisionReason String?
+  cancelledAt    DateTime?     @db.Timestamptz(3)
+  createdAt      DateTime      @default(now()) @db.Timestamptz(3)
+  updatedAt      DateTime      @updatedAt @db.Timestamptz(3)
+
+  // Relations
+  // RESTRICT, not Cascade: a booking is historical/audit-relevant transactional data.
+  // Deleting a Room or User must not silently erase booking history. Rooms are
+  // disabled with isActive; users should be deactivated, not deleted.
+  room      Room              @relation(fields: [roomId], references: [id], onDelete: Restrict)
+  user      User              @relation("BookingRequester", fields: [userId], references: [id], onDelete: Restrict)
+  decidedBy User?             @relation("BookingDecider", fields: [decidedById], references: [id], onDelete: SetNull)
+  slots     RoomBookingSlot[]
+
+  @@index([roomId, date, status])
+  @@index([userId, date])
+  @@index([status, createdAt])
+  @@map("room_bookings")
+}
+
+// One academic slot inside a booking. A booking covers one or more.
+//
+// roomId/date are NOT duplicated here - they are derived through the parent booking,
+// so there is no way for them to drift out of sync.
+model RoomBookingSlot {
+  id        String       @id @default(cuid())
+  bookingId String
+  slot      AcademicSlot
+  // Resolved from the booking date + slot at creation time, in Asia/Bangkok.
+  // Stored so a later edit to ACADEMIC_SLOTS cannot rewrite what a past booking meant,
+  // and so the gate can authorize with a plain timestamp comparison.
+  startAt   DateTime     @db.Timestamptz(3)
+  endAt     DateTime     @db.Timestamptz(3)
+
+  // Relations
+  booking RoomBooking @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+
+  @@unique([bookingId, slot])
+  @@map("room_booking_slots")
+}
+
+// Allowed booking day+slot for a room. FAIL-CLOSED:
+// a room with bookingEnabled = true but NO rows here is "not configured" and is
+// therefore NOT bookable. All days / all slots must be represented explicitly.
+model RoomAvailabilityWindow {
+  id        String       @id @default(cuid())
+  roomId    String
+  dayOfWeek Int // 0=Sunday … 6=Saturday, same convention as ClassSchedule
+  slot      AcademicSlot
+
+  // Relations
+  room Room @relation(fields: [roomId], references: [id], onDelete: Cascade)
+
+  @@unique([roomId, dayOfWeek, slot])
+  @@index([roomId])
+  @@map("room_availability_windows")
+}
+
+// Temporary closure / maintenance. Distinct from Room.isActive, which is permanent,
+// and from the site-wide MAINTENANCE_MODE SystemSetting.
+model RoomClosure {
+  id          String   @id @default(cuid())
+  roomId      String
+  // Inclusive Asia/Bangkok calendar dates.
+  startDate   DateTime @db.Date
+  endDate     DateTime @db.Date
+  // Empty means the whole date range is closed; otherwise only these slots are.
+  slots       AcademicSlot[] @default([])
+  reason      String?
+  createdById String?
+  createdAt   DateTime @default(now()) @db.Timestamptz(3)
+
+  // Relations
+  room      Room  @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  createdBy User? @relation("ClosureCreator", fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@index([roomId, startDate, endDate])
+  @@map("room_closures")
 }
