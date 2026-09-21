@@ -52,7 +52,7 @@ async function main() {
       hashedPassword: staffPassword,
       role: "STUDENT",
       status: "APPROVED",
-      studentId: "1660708635",
+      studentId: "DEMO-STUDENT-001",
       phone: "02-000-0002",
     },
   });
@@ -69,7 +69,7 @@ async function main() {
       hashedPassword: studentTwoPassword,
       role: "STUDENT",
       status: "APPROVED",
-      studentId: "1660703413",
+      studentId: "DEMO-STUDENT-002",
       phone: "02-000-0004",
     },
   });
@@ -163,11 +163,129 @@ async function main() {
   }
   console.log(`✅ Generated room inventory: ${generatedCount} rooms`);
 
+  // Create deterministic synthetic schedules for local UI and access-flow testing.
+  const scheduleRoomCodes = ["LAB-01", "MEETING-A", "MEETING-B"];
+  const seededRooms = await prisma.room.findMany({
+    where: { roomCode: { in: scheduleRoomCodes } },
+    select: { id: true, roomCode: true },
+  });
+  const roomByCode = new Map(seededRooms.map((room) => [room.roomCode, room.id]));
+
+  const demoSchedules = [
+    {
+      id: "demo-schedule-staff-mon-1",
+      userId: staff.id,
+      roomCode: "LAB-01",
+      dayOfWeek: 1,
+      startTime: "09:00",
+      endTime: "11:00",
+      section: "DEMO-A",
+      subjectName: "การเขียนโปรแกรมเบื้องต้น",
+      subjectCode: "DEMO101",
+      semester: "2/2026",
+    },
+    {
+      id: "demo-schedule-staff-mon-2",
+      userId: staff.id,
+      roomCode: "MEETING-A",
+      dayOfWeek: 1,
+      startTime: "13:00",
+      endTime: "15:00",
+      section: "DEMO-A",
+      subjectName: "การออกแบบระบบ",
+      subjectCode: "DEMO102",
+      semester: "2/2026",
+    },
+    {
+      id: "demo-schedule-student2-tue-1",
+      userId: studentTwo.id,
+      roomCode: "LAB-01",
+      dayOfWeek: 2,
+      startTime: "10:00",
+      endTime: "12:00",
+      section: "DEMO-B",
+      subjectName: "ฐานข้อมูลสำหรับการทดสอบ",
+      subjectCode: "DEMO201",
+      semester: "2/2026",
+    },
+    {
+      id: "demo-schedule-student2-tue-conflict",
+      userId: studentTwo.id,
+      roomCode: "MEETING-B",
+      dayOfWeek: 2,
+      startTime: "11:30",
+      endTime: "13:30",
+      section: "DEMO-C",
+      subjectName: "กรณีทดสอบเวลาชนกัน",
+      subjectCode: "DEMO202",
+      semester: "2/2026",
+    },
+    {
+      id: "demo-schedule-staff-wed-quick-access",
+      userId: staff.id,
+      roomCode: "LAB-01",
+      dayOfWeek: 3,
+      startTime: "14:00",
+      endTime: "16:00",
+      section: "DEMO-A",
+      subjectName: "กรณีทดสอบ Quick Access",
+      subjectCode: "DEMO301",
+      semester: "2/2026",
+    },
+    {
+      id: "demo-schedule-student2-old-semester",
+      userId: studentTwo.id,
+      roomCode: "MEETING-A",
+      dayOfWeek: 4,
+      startTime: "09:00",
+      endTime: "10:00",
+      section: "DEMO-B",
+      subjectName: "ข้อมูลคนละภาคการศึกษา",
+      subjectCode: "DEMO401",
+      semester: "1/2026",
+    },
+  ];
+
+  for (const schedule of demoSchedules) {
+    const roomId = roomByCode.get(schedule.roomCode);
+    if (!roomId) {
+      throw new Error(`Missing seeded room: ${schedule.roomCode}`);
+    }
+
+    await prisma.classSchedule.upsert({
+      where: { id: schedule.id },
+      update: {
+        userId: schedule.userId,
+        roomId,
+        dayOfWeek: schedule.dayOfWeek,
+        startTime: schedule.startTime,
+        endTime: schedule.endTime,
+        section: schedule.section,
+        subjectName: schedule.subjectName,
+        subjectCode: schedule.subjectCode,
+        semester: schedule.semester,
+      },
+      create: {
+        id: schedule.id,
+        userId: schedule.userId,
+        roomId,
+        dayOfWeek: schedule.dayOfWeek,
+        startTime: schedule.startTime,
+        endTime: schedule.endTime,
+        section: schedule.section,
+        subjectName: schedule.subjectName,
+        subjectCode: schedule.subjectCode,
+        semester: schedule.semester,
+      },
+    });
+  }
+  console.log(`✅ Seeded deterministic demo schedules: ${demoSchedules.length}`);
+
   console.log("\n🎉 Seeding completed!");
   console.log("\n📋 Test Accounts:");
   console.log("  Admin: admin@elegant.com / admin123");
-  console.log("  Student 1: staff@elegant.com / staff123 (1660708635)");
-  console.log("  Student 2: student2@elegant.com / student123 (1660703412)");
+  console.log("  Student 1: staff@elegant.com / staff123 (DEMO-STUDENT-001)");
+  console.log("  Student 2: student2@elegant.com / student123 (DEMO-STUDENT-002)");
   console.log("  Guest: guest@example.com / guest123");
 }
 
