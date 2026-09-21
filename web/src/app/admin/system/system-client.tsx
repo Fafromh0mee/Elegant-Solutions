@@ -12,6 +12,7 @@ import {
   X,
 } from "lucide-react";
 import { AdminPageHeader } from "@/components/admin-page-header";
+import { getAccountStatusLabel, getRoleLabel } from "@/lib/ui-terms";
 
 type AdminUser = {
   id: string;
@@ -73,7 +74,7 @@ export function SystemClient({
 
       setMaintenanceMode(nextValue);
       setSuccess(
-        nextValue ? "เปิดโหมด Maintenance แล้ว" : "ปิดโหมด Maintenance แล้ว",
+        nextValue ? "เปิดโหมดบำรุงรักษาแล้ว" : "ปิดโหมดบำรุงรักษาแล้ว",
       );
       setConfirmTarget(null);
     });
@@ -87,7 +88,7 @@ export function SystemClient({
         <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 flex items-start gap-2">
           <AlertTriangle className="h-4 w-4 mt-0.5" />
           <span>
-            Maintenance mode กำลังทำงานอยู่ ผู้ใช้ทั่วไปจะถูก redirect ไปหน้า
+            โหมดบำรุงรักษากำลังทำงานอยู่ ผู้ใช้ทั่วไปจะถูกนำไปยังหน้า
             maintenance
           </span>
         </div>
@@ -122,23 +123,23 @@ export function SystemClient({
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <div className="card">
-          <p className="text-xs text-gray-500">System Mode</p>
+          <p className="text-xs text-gray-500">โหมดระบบ</p>
           <p className="text-2xl font-semibold mt-1">
-            {maintenanceMode ? "Maintenance" : "Normal"}
+            {maintenanceMode ? "บำรุงรักษา" : "ปกติ"}
           </p>
         </div>
         <div className="card">
-          <p className="text-xs text-gray-500">Admin Accounts</p>
+          <p className="text-xs text-gray-500">บัญชีผู้ดูแลระบบ</p>
           <p className="text-2xl font-semibold mt-1">{adminUsers.length}</p>
         </div>
         <div className="card">
-          <p className="text-xs text-gray-500">Approved Admins</p>
+          <p className="text-xs text-gray-500">ผู้ดูแลระบบที่อนุมัติแล้ว</p>
           <p className="text-2xl font-semibold mt-1">{activeAdmins}</p>
         </div>
       </div>
 
       <div className="card">
-        <h2 className="text-lg font-semibold mb-4">Maintenance Mode Toggle</h2>
+        <h2 className="text-lg font-semibold mb-4">จัดการโหมดบำรุงรักษา</h2>
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div className="flex items-center gap-3">
             {maintenanceMode ? (
@@ -154,7 +155,7 @@ export function SystemClient({
               </p>
               <p className="text-sm text-gray-500">
                 เมื่อเปิดใช้งาน ผู้ใช้ทั่วไปจะถูก redirect ไปหน้า maintenance
-                (Admin/SUPER_ADMIN ยังเข้าได้)
+                (ผู้ดูแลระบบและผู้ดูแลระบบระดับสูงยังเข้าใช้งานได้)
               </p>
             </div>
           </div>
@@ -167,8 +168,8 @@ export function SystemClient({
             {isPending
               ? "กำลังบันทึก..."
               : maintenanceMode
-                ? "ปิด Maintenance"
-                : "เปิด Maintenance"}
+                ? "ปิดโหมดบำรุงรักษา"
+                : "เปิดโหมดบำรุงรักษา"}
           </button>
         </div>
       </div>
@@ -176,7 +177,7 @@ export function SystemClient({
       <div className="card overflow-x-auto">
         <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
           <Users className="h-5 w-5" />
-          Admin / Super Admin Accounts
+          บัญชีผู้ดูแลระบบ
         </h2>
         <table className="w-full text-sm">
           <thead>
@@ -201,10 +202,10 @@ export function SystemClient({
                         : "badge-admin"
                     }
                   >
-                    {user.role}
+                    {getRoleLabel(user.role)}
                   </span>
                 </td>
-                <td className="py-3 pr-4">{user.status}</td>
+                <td className="py-3 pr-4">{getAccountStatusLabel(user.status)}</td>
                 <td className="py-3 text-gray-600">
                   {new Date(user.createdAt).toLocaleString("th-TH")}
                 </td>
@@ -213,7 +214,7 @@ export function SystemClient({
             {adminUsers.length === 0 && (
               <tr>
                 <td colSpan={5} className="py-8 text-center text-gray-500">
-                  ยังไม่มีบัญชี Admin/Super Admin
+                  ยังไม่มีบัญชีผู้ดูแลระบบ
                 </td>
               </tr>
             )}
@@ -281,8 +282,8 @@ export function SystemClient({
             </h3>
             <p className="text-sm text-gray-600 mb-4">
               {confirmTarget
-                ? "คุณกำลังจะเปิด Maintenance mode ผู้ใช้ทั่วไปจะเข้าใช้งานหน้าหลักไม่ได้ชั่วคราว"
-                : "คุณกำลังจะปิด Maintenance mode และเปิดระบบให้ผู้ใช้ทั่วไปกลับมาใช้งานได้"}
+                ? "คุณกำลังจะเปิดโหมดบำรุงรักษา ผู้ใช้ทั่วไปจะไม่สามารถเข้าใช้งานหน้าหลักได้ชั่วคราว"
+                : "คุณกำลังจะปิดโหมดบำรุงรักษาและเปิดระบบให้ผู้ใช้ทั่วไปกลับมาใช้งานได้"}
             </p>
             <div className="rounded-lg bg-gray-50 border border-gray-200 p-3 text-xs text-gray-600 mb-5">
               การเปลี่ยนค่านี้จะมีผลทันที และถูกบันทึกลง Audit Log

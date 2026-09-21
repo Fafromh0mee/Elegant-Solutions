@@ -34,8 +34,8 @@ export async function GET() {
       { header: "บทบาท", key: "userRole", width: 10 },
       { header: "ห้อง", key: "roomName", width: 20 },
       { header: "รหัสห้อง", key: "roomCode", width: 15 },
-      { header: "Check-in", key: "checkIn", width: 22 },
-      { header: "Check-out", key: "checkOut", width: 22 },
+      { header: "เวลาเข้าใช้", key: "checkIn", width: 22 },
+      { header: "เวลาออก", key: "checkOut", width: 22 },
       { header: "สถานะ", key: "status", width: 12 },
     ];
 

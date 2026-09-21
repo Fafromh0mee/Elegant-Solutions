@@ -10,7 +10,7 @@ export default function MaintenancePage() {
           กรุณาลองใหม่อีกครั้งในภายหลัง
         </p>
         <p className="text-sm text-gray-500 mb-6">
-          ผู้ดูแลระบบยังสามารถเข้าใช้งานผ่านหน้า Admin ได้ตามปกติ
+          ผู้ดูแลระบบยังสามารถเข้าใช้งานผ่านหน้าผู้ดูแลระบบได้ตามปกติ
         </p>
         <div className="flex justify-center">
           <Link href="/" className="btn-primary">

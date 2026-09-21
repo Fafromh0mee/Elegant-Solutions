@@ -4,6 +4,7 @@ import { useState, useMemo } from "react";
 import { Download } from "lucide-react";
 import { AdminPageHeader } from "@/components/admin-page-header";
 import { TablePagination } from "@/components/table-pagination";
+import { getRoleLabel } from "@/lib/ui-terms";
 
 interface SessionItem {
   id: string;
@@ -41,7 +42,7 @@ export function ReportsClient({ sessions }: { sessions: SessionItem[] }) {
       URL.revokeObjectURL(url);
     } catch (error) {
       console.error("Export error:", error);
-      alert("เกิดข้อผิดพลาดในการ export");
+      alert("เกิดข้อผิดพลาดในการส่งออกข้อมูล");
     }
     setLoading(false);
   }
@@ -59,7 +60,7 @@ export function ReportsClient({ sessions }: { sessions: SessionItem[] }) {
           disabled={loading}
         >
           <Download className="h-4 w-4" />
-          {loading ? "กำลัง Export..." : "Export Excel"}
+          {loading ? "กำลังส่งออกข้อมูล..." : "ส่งออกไฟล์ Excel"}
         </button>
       </div>
 
@@ -69,7 +70,7 @@ export function ReportsClient({ sessions }: { sessions: SessionItem[] }) {
           <p className="text-3xl font-bold text-(--color-secondary)">
             {sessions.length}
           </p>
-          <p className="text-sm text-gray-500">Sessions ทั้งหมด</p>
+          <p className="text-sm text-gray-500">รายการใช้งานทั้งหมด</p>
         </div>
         <div className="card">
           <p className="text-3xl font-bold text-amber-600">
@@ -101,8 +102,8 @@ export function ReportsClient({ sessions }: { sessions: SessionItem[] }) {
               <th className="pb-3 pr-4">ผู้ใช้</th>
               <th className="pb-3 pr-4">บทบาท</th>
               <th className="pb-3 pr-4">ห้อง</th>
-              <th className="pb-3 pr-4">Check-in</th>
-              <th className="pb-3 pr-4">Check-out</th>
+              <th className="pb-3 pr-4">เวลาเข้าใช้</th>
+              <th className="pb-3 pr-4">เวลาออก</th>
               <th className="pb-3">สถานะ</th>
             </tr>
           </thead>
@@ -125,7 +126,7 @@ export function ReportsClient({ sessions }: { sessions: SessionItem[] }) {
                             : "badge-guest"
                     }
                   >
-                    {session.user.role}
+                    {getRoleLabel(session.user.role)}
                   </span>
                 </td>
                 <td className="py-3 pr-4">{session.room.name}</td>

@@ -42,7 +42,7 @@ export async function checkInAction(input: {
     return { success: true, sessionId: session.id };
   } catch (error) {
     console.error("Check-in error:", error);
-    return { error: "เกิดข้อผิดพลาดในการ Check-in" };
+    return { error: "เกิดข้อผิดพลาดในการเข้าใช้ห้อง" };
   }
 }
 
@@ -83,7 +83,7 @@ export async function checkOutAction(input: {
     return { success: true };
   } catch (error) {
     console.error("Check-out error:", error);
-    return { error: "เกิดข้อผิดพลาดในการ Check-out" };
+    return { error: "เกิดข้อผิดพลาดในการออกจากห้อง" };
   }
 }
 

@@ -162,7 +162,7 @@ export function RoomsClient({ initialRooms }: { initialRooms: RoomItem[] }) {
     if (result.error) {
       setError(result.error);
     } else {
-      setSuccess("อัพเดทห้องสำเร็จ!");
+      setSuccess("อัปเดตห้องสำเร็จ!");
       setEditingId(null);
       window.location.reload();
     }

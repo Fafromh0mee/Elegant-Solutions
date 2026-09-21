@@ -122,8 +122,8 @@ export default function GatePage({
           setVerifiedUsers(users);
           setMessage(
             isCheckOut
-              ? `${result.isGroup ? "กลุ่ม" : ""} Check-out สำเร็จ`
-              : `${result.isGroup ? "กลุ่ม" : ""} Check-in สำเร็จ`,
+              ? `${result.isGroup ? "กลุ่ม" : ""} ออกจากห้องสำเร็จ`
+              : `${result.isGroup ? "กลุ่ม" : ""} เข้าใช้ห้องสำเร็จ`,
           );
         } else {
           setStatus("CLOSED");
@@ -261,7 +261,7 @@ export default function GatePage({
           setStatus(data.access_granted ? "OPEN" : "CLOSED");
           setVerifiedUsers([data.user]);
           setMessage(
-            `${data.is_check_out ? "Check-out" : "Check-in"} สำเร็จ (${Math.round(data.score * 100)}%)`,
+            `${data.is_check_out ? "ออกจากห้อง" : "เข้าใช้ห้อง"}สำเร็จ (${Math.round(data.score * 100)}%)`,
           );
           setFaceMessage("");
         } else if (data.matched && !data.access_granted) {
@@ -280,7 +280,7 @@ export default function GatePage({
           setFaceMessage(data.message || "ขยับหน้าให้อยู่ในกรอบ");
         }
       } catch {
-        setFaceMessage("ไม่สามารถเชื่อมต่อ AI Service ได้");
+        setFaceMessage("ไม่สามารถตรวจสอบใบหน้าได้ในขณะนี้ กรุณาลองใหม่อีกครั้ง");
       }
 
       processingRef.current = false;
@@ -406,7 +406,7 @@ export default function GatePage({
             <button
               onClick={() => switchMode("manual")}
               className={`flex items-center gap-1.5 px-3 py-2 text-sm transition-colors ${inputMode === "manual" ? "bg-white/20 text-white" : "text-white/60 hover:text-white"}`}
-              title="กรอก Token หรือ Student ID"
+              title="กรอก Token หรือรหัสนักศึกษา"
             >
               <Keyboard className="h-4 w-4" />
               <span className="hidden sm:inline">Manual</span>
@@ -422,7 +422,7 @@ export default function GatePage({
           <>
             <h1 className="text-2xl font-bold mb-4">สแกน QR Code</h1>
             <p className="text-sm text-white/60 mb-4">
-              ส่อง QR Code เข้ากรอบเพื่อเข้า-ออกห้อง
+              ส่อง QR Code ในกรอบเพื่อเข้าใช้หรือออกจากห้อง
             </p>
             <div className="relative mx-auto w-full max-w-[320px] aspect-square rounded-2xl overflow-hidden bg-black/50 mb-4">
               <div id="qr-scanner-region" className="w-full h-full" />
@@ -466,7 +466,7 @@ export default function GatePage({
           <>
             <h1 className="text-2xl font-bold mb-4">สแกนใบหน้า</h1>
             <p className="text-sm text-white/60 mb-4">
-              หันหน้าเข้ากล้อง (STUDENT เท่านั้น)
+              หันหน้าเข้ากล้อง (เฉพาะนักศึกษา)
             </p>
             <div className="relative mx-auto w-full max-w-[320px] aspect-3/4 rounded-2xl overflow-hidden bg-black/50 mb-4">
               <video
@@ -527,17 +527,17 @@ export default function GatePage({
           <>
             <QrCode className="h-16 w-16 mx-auto mb-4 animate-pulse" />
             <h1 className="text-2xl font-bold mb-2">
-              กรอก Token หรือ Student ID
+              กรอก Token หรือรหัสนักศึกษา
             </h1>
             <p className="text-sm text-white/60 mb-6">
-              กรอกรหัส Token หรือ Student ID เพื่อตรวจสอบสิทธิ์เข้า-ออกห้อง
+              กรอกรหัส Token หรือรหัสนักศึกษาเพื่อตรวจสอบสิทธิ์เข้าใช้ห้อง
             </p>
             <form onSubmit={handleManualScan} className="w-full">
               <input
                 ref={inputRef}
                 type="text"
                 className="w-full bg-white/10 border border-white/20 rounded-xl px-6 py-4 text-center text-white placeholder-white/40 text-lg focus:outline-none focus:ring-2 focus:ring-white/50"
-                placeholder="กรอก Token หรือ Student ID"
+                placeholder="กรอก Token หรือรหัสนักศึกษา"
                 value={tokenInput}
                 onChange={(e) => setTokenInput(e.target.value)}
                 disabled={loading}

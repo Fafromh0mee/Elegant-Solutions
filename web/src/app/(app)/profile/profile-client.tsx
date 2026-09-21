@@ -8,6 +8,7 @@ import {
   changePasswordAction,
 } from "@/actions/profile";
 import type { AuthUser } from "@/lib/types";
+import { getRoleLabel } from "@/lib/ui-terms";
 
 export function ProfileClient({ user }: { user: AuthUser }) {
   const [name, setName] = useState(user.name);
@@ -38,7 +39,7 @@ export function ProfileClient({ user }: { user: AuthUser }) {
     if (result.error) {
       setError(result.error);
     } else {
-      setSuccess("อัพเดทโปรไฟล์สำเร็จ!");
+      setSuccess("อัปเดตโปรไฟล์สำเร็จ!");
     }
     setLoading(false);
   }
@@ -110,7 +111,7 @@ export function ProfileClient({ user }: { user: AuthUser }) {
                     : "badge-guest"
             }
           >
-            {user.role}
+            {getRoleLabel(user.role)}
           </span>
         </div>
         <form onSubmit={handleUpdateProfile} className="space-y-4">

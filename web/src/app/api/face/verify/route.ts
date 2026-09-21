@@ -86,7 +86,7 @@ export async function POST(req: NextRequest) {
         {
           matched: false,
           face_detected: false,
-          message: "ไม่สามารถเชื่อมต่อ AI Service ได้",
+          message: "ไม่สามารถตรวจสอบใบหน้าได้ในขณะนี้ กรุณาลองใหม่อีกครั้ง",
         },
         { status: 503 }
       );
@@ -95,7 +95,7 @@ export async function POST(req: NextRequest) {
     if (!aiRes.ok) {
       console.error("AI service verify error:", await aiRes.text());
       return NextResponse.json(
-        { matched: false, face_detected: false, message: "AI Service error" },
+        { matched: false, face_detected: false, message: "ไม่สามารถตรวจสอบใบหน้าได้ในขณะนี้ กรุณาลองใหม่อีกครั้ง" },
         { status: 502 }
       );
     }
@@ -140,7 +140,7 @@ export async function POST(req: NextRequest) {
         matched: true,
         face_detected: true,
         score: aiData.score,
-        message: "ห้องนี้สำหรับ STUDENT เท่านั้น",
+        message: "ห้องนี้สำหรับนักศึกษาเท่านั้น",
         access_granted: false,
         user: { id: user.id, name: user.name, role: user.role },
       });
@@ -255,7 +255,7 @@ export async function POST(req: NextRequest) {
           matched: true,
           face_detected: true,
           score: aiData.score,
-          message: "เกิดข้อผิดพลาดในการ Check-out",
+          message: "เกิดข้อผิดพลาดในการออกจากห้อง",
           access_granted: false,
           user: { id: user.id, name: user.name, role: user.role },
         });
@@ -288,7 +288,7 @@ export async function POST(req: NextRequest) {
       score: aiData.score,
       access_granted: true,
       is_check_out: isCheckOut,
-      message: isCheckOut ? "Check-out สำเร็จ" : "Check-in สำเร็จ",
+      message: isCheckOut ? "ออกจากห้องสำเร็จ" : "เข้าใช้ห้องสำเร็จ",
       user: { id: user.id, name: user.name, role: user.role },
     });
   } catch (error) {

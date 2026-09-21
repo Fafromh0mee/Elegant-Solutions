@@ -16,6 +16,7 @@ import {
   WifiOff,
   X,
 } from "lucide-react";
+import { getRiskLevelLabel } from "@/lib/ui-terms";
 import {
   addBlacklistAction,
   removeBlacklistAction,
@@ -279,7 +280,7 @@ export function TrackingClient({
                             : "inline-flex rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700"
                         }
                       >
-                        {m.riskLevel}
+                        {getRiskLevelLabel(m.riskLevel)}
                       </span>
                     </td>
                     <td className="py-3">
@@ -443,7 +444,7 @@ function LogHistoryDropdown({ machineId }: { machineId: string }) {
                       : "text-green-600"
                   }
                 >
-                  {log.riskLevel}
+                  {getRiskLevelLabel(log.riskLevel)}
                 </span>
               </td>
             </tr>

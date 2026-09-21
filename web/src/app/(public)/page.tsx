@@ -60,42 +60,42 @@ const fadeInUpVariants = {
 const mainFeatures = [
   {
     icon: <ScanFace className="h-6 w-6" />,
-    eyebrow: "Identity Verification",
+    eyebrow: "การยืนยันตัวตน",
     title: "ยืนยันตัวตนได้หลายรูปแบบในระบบเดียว",
     description:
-      "รองรับ AI Face Recognition, QR Code และจุดสแกนหน้าห้อง เพื่อให้หน้างานลื่นขึ้นโดยไม่ต้องสลับหลายระบบ",
+      "รองรับการสแกนใบหน้า, QR Code และจุดสแกนหน้าห้อง เพื่อให้หน้างานลื่นขึ้นโดยไม่ต้องสลับหลายระบบ",
   },
   {
     icon: <CalendarClock className="h-6 w-6" />,
-    eyebrow: "Schedule Control",
+    eyebrow: "การควบคุมตารางใช้งาน",
     title: "กำหนดสิทธิ์ตามเวลาและตารางใช้งานจริง",
     description:
       "จัดการสิทธิ์รายห้อง รายกลุ่ม หรือรายบุคคลตามช่วงเวลา ลดปัญหาการเข้าห้องผิดรอบและสิทธิ์ค้าง",
   },
   {
     icon: <Users className="h-6 w-6" />,
-    eyebrow: "Centralized Access",
+    eyebrow: "การจัดการสิทธิ์จากศูนย์กลาง",
     title: "ดูแลสิทธิ์ผู้ใช้งานทั้งองค์กรจากศูนย์กลาง",
     description:
-      "รองรับ role, group และ workflow การอนุมัติ ช่วยให้ผู้ดูแลควบคุมการเข้าถึงได้เป็นระบบมากขึ้น",
+      "รองรับบทบาท กลุ่มผู้ใช้ และขั้นตอนการอนุมัติ ช่วยให้ผู้ดูแลควบคุมการเข้าถึงได้เป็นระบบมากขึ้น",
   },
   {
     icon: <History className="h-6 w-6" />,
-    eyebrow: "Audit Trail",
+    eyebrow: "ประวัติการใช้งาน",
     title: "ตรวจสอบย้อนหลังได้ทุกเหตุการณ์สำคัญ",
     description:
-      "มี log การเข้าออกและข้อมูลพร้อม export สำหรับงานตรวจสอบภายใน รายงานบริหาร และติดตามเหตุการณ์ย้อนหลัง",
+      "มีประวัติการเข้าออกและข้อมูลสำหรับส่งออก ใช้ตรวจสอบภายใน จัดทำรายงาน และติดตามเหตุการณ์ย้อนหลัง",
   },
   {
     icon: <DoorOpen className="h-6 w-6" />,
-    eyebrow: "On-site Experience",
+    eyebrow: "ประสบการณ์ใช้งานหน้าห้อง",
     title: "ออกแบบเพื่อการใช้งานหน้าห้องที่รวดเร็ว",
     description:
-      "รองรับจุด Kiosk และ flow การใช้งานจริง ช่วยลดคิว ลดภาระเจ้าหน้าที่ และทำให้ผู้ใช้งานเข้าห้องได้ไวขึ้น",
+      "รองรับจุดบริการอัตโนมัติและขั้นตอนการใช้งานจริง ช่วยลดคิว ลดภาระเจ้าหน้าที่ และทำให้ผู้ใช้งานเข้าห้องได้ไวขึ้น",
   },
   {
     icon: <Shield className="h-6 w-6" />,
-    eyebrow: "Security First",
+    eyebrow: "ความปลอดภัยมาก่อน",
     title: "เพิ่มความปลอดภัยโดยไม่เพิ่มความยุ่งยาก",
     description:
       "เหมาะกับองค์กรที่ต้องการทั้งความคล่องตัวในการใช้งาน และมาตรฐานการควบคุมสิทธิ์ที่ชัดเจน",
@@ -119,7 +119,7 @@ const benefitPoints = [
     number: "03",
     title: "รองรับการเติบโตในอนาคต",
     description:
-      "สามารถเริ่มจาก use case เล็ก ๆ ก่อน แล้วค่อยต่อยอดไปหลายห้อง หลายอาคาร หรือหลายแผนกได้",
+      "สามารถเริ่มจากกรณีใช้งานเล็ก ๆ ก่อน แล้วค่อยต่อยอดไปหลายห้อง หลายอาคาร หรือหลายแผนกได้",
   },
   {
     number: "04",
@@ -136,14 +136,14 @@ const faqs = [
       "เหมาะกับสถาบันการศึกษา บริษัท โรงพยาบาล โรงงาน และหน่วยงานที่มีห้องหรือพื้นที่ที่ต้องควบคุมสิทธิ์การเข้าใช้งานอย่างชัดเจน",
   },
   {
-    question: "จำเป็นต้องใช้ AI Face Recognition อย่างเดียวหรือไม่",
+    question: "จำเป็นต้องใช้การสแกนใบหน้าอย่างเดียวหรือไม่",
     answer:
-      "ไม่จำเป็น ระบบรองรับหลายรูปแบบ เช่น AI Face Recognition, QR Code และจุด Kiosk หน้าห้อง เพื่อให้เลือกใช้ตามบริบทของหน้างานได้",
+      "ไม่จำเป็น ระบบรองรับหลายรูปแบบ เช่น การสแกนใบหน้า, QR Code และจุดบริการอัตโนมัติหน้าห้อง เพื่อให้เลือกใช้ตามบริบทของหน้างานได้",
   },
   {
     question: "สามารถตรวจสอบว่าใครเข้าออกห้องเมื่อไรได้หรือไม่",
     answer:
-      "ได้ ระบบบันทึก log การเข้าออกและข้อมูลสำคัญไว้สำหรับการตรวจสอบย้อนหลัง รวมถึงรองรับการนำข้อมูลไปทำรายงานต่อได้",
+      "ได้ ระบบบันทึกประวัติการเข้าออกและข้อมูลสำคัญไว้สำหรับการตรวจสอบย้อนหลัง รวมถึงรองรับการนำข้อมูลไปทำรายงานต่อได้",
   },
   {
     question: "ถ้ามีหลายห้องหรือหลายแผนก ระบบยังจัดการง่ายอยู่ไหม",
@@ -293,7 +293,7 @@ export default function HomePage() {
             whileInView="visible"
             viewport={{ once: true, amount: 0.5 }}
           >
-            <span className="badge-admin">Core Value</span>
+            <span className="badge-admin">จุดเด่น</span>
             <h2 className="mt-5 text-3xl font-bold text-gray-900 sm:text-4xl">
               ฟีเจอร์หลักที่ช่วยให้ระบบนี้น่าใช้งานจริงในองค์กร
             </h2>
@@ -342,7 +342,7 @@ export default function HomePage() {
             transition={{ duration: 0.6 }}
             viewport={{ once: true, amount: 0.5 }}
           >
-            <span className="badge-admin">Use Cases</span>
+            <span className="badge-admin">การใช้งาน</span>
             <h2 className="mt-5 text-3xl font-bold text-gray-900 sm:text-4xl">
               ตอบโจทย์ทุกประเภทองค์กร
             </h2>
@@ -361,7 +361,7 @@ export default function HomePage() {
                 viewport={{ once: true, amount: 0.5 }}
               >
                 <p className="text-2xl font-bold text-(--color-cta)">
-                  6 Industries
+                  6 ประเภทองค์กร
                 </p>
                 <p className="mt-1 text-sm text-gray-500">
                   รองรับการใช้งานจริงทั่วเรื่องประเภทขององค์กร
@@ -401,7 +401,7 @@ export default function HomePage() {
                 icon: <Building2 className="h-12 w-12" />,
                 title: "บริษัทและองค์กร",
                 description:
-                  "บริหารจัดการห้องประชุม ห้องทำงาน พร้อมระบบรายงานการใช้งานแบบ Real-time",
+                  "บริหารจัดการห้องประชุม ห้องทำงาน พร้อมระบบรายงานการใช้งานแบบทันที",
               },
               {
                 icon: <Hospital className="h-12 w-12" />,
@@ -417,15 +417,15 @@ export default function HomePage() {
               },
               {
                 icon: <Briefcase className="h-12 w-12" />,
-                title: "Co-Working Space",
+                title: "พื้นที่ทำงานร่วมกัน",
                 description:
-                  "ให้บริการจองห้องและเช็คอินอัตโนมัติ สะดวกทั้งผู้ให้บริการและลูกค้า",
+                  "ให้บริการจองห้องและบันทึกการเข้าใช้ห้องอัตโนมัติ สะดวกทั้งผู้ให้บริการและผู้ใช้งาน",
               },
               {
                 icon: <Landmark className="h-12 w-12" />,
                 title: "หน่วยงานราชการ",
                 description:
-                  "ระบบรักษาความปลอดภัย พร้อม Log การเข้าออกที่สามารถตรวจสอบย้อนหลังได้",
+                    "ระบบรักษาความปลอดภัย พร้อมประวัติการเข้าออกที่สามารถตรวจสอบย้อนหลังได้",
               },
             ].map((item) => (
               <motion.div key={item.title} variants={itemVariants}>
@@ -456,7 +456,7 @@ export default function HomePage() {
             whileInView="visible"
             viewport={{ once: true, amount: 0.5 }}
           >
-            <span className="badge-admin">Why Us</span>
+            <span className="badge-admin">เหตุผลที่เลือกใช้</span>
             <h2 className="mt-5 text-3xl font-bold text-gray-900 sm:text-4xl">
               ทำไมต้อง Elegant Solutions
             </h2>
@@ -504,7 +504,7 @@ export default function HomePage() {
             whileInView="visible"
             viewport={{ once: true, amount: 0.5 }}
           >
-            <span className="badge-admin">FAQ</span>
+            <span className="badge-admin">คำถามที่พบบ่อย</span>
             <h2 className="mt-5 text-3xl font-bold text-gray-900 sm:text-4xl">
               คำถามที่พบบ่อย
             </h2>
@@ -569,7 +569,7 @@ export default function HomePage() {
                       href="/#use-case"
                       className="text-gray-700 hover:text-(--color-primary) transition-colors"
                     >
-                      Use Cases
+                      การใช้งาน
                     </Link>
                   </li>
                   <li>
@@ -577,7 +577,7 @@ export default function HomePage() {
                       href="/#FAQ"
                       className="text-gray-700 hover:text-(--color-primary) transition-colors"
                     >
-                      FAQ
+                      คำถามที่พบบ่อย
                     </Link>
                   </li>
                 </ul>

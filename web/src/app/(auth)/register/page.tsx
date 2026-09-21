@@ -131,7 +131,7 @@ export default function RegisterPage() {
         <div className="card">
           <h1 className="text-2xl font-bold text-center mb-2">สมัครสมาชิก</h1>
           <p className="text-center text-sm text-gray-500 mb-6">
-            สมัครแบบ Guest (ต้องรอ Admin อนุมัติก่อนใช้งาน)
+            สมัครแบบ Guest (ต้องรอผู้ดูแลระบบอนุมัติก่อนใช้งาน)
           </p>
 
           <div className="mb-4 rounded-lg border border-blue-100 bg-blue-50 px-3 py-2 text-xs text-blue-800">

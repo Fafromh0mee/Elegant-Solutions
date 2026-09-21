@@ -14,7 +14,7 @@ export async function POST(req: NextRequest) {
     // Only STUDENT / ADMIN / SUPER_ADMIN can enroll face
     if (session.user.role === "GUEST") {
       return NextResponse.json(
-        { error: "เฉพาะ STUDENT เท่านั้นที่สามารถลงทะเบียนใบหน้าได้" },
+        { error: "เฉพาะนักศึกษาเท่านั้นที่สามารถลงทะเบียนใบหน้าได้" },
         { status: 403 }
       );
     }
@@ -44,7 +44,7 @@ export async function POST(req: NextRequest) {
       console.error("[ENROLL] Fetch failed:", err);
       return NextResponse.json(
         { 
-          error: "ไม่สามารถเชื่อมต่อ AI Service ได้", 
+          error: "ไม่สามารถตรวจสอบใบหน้าได้ในขณะนี้ กรุณาลองใหม่อีกครั้ง",
           detail: err instanceof Error ? err.message : String(err),
           url: AI_SERVICE_URL 
         },
@@ -56,7 +56,7 @@ export async function POST(req: NextRequest) {
       const errText = await aiRes.text();
       console.error("AI service error:", errText);
       return NextResponse.json(
-        { error: "AI Service ไม่สามารถประมวลผลได้" },
+        { error: "ไม่สามารถประมวลผลใบหน้าได้ในขณะนี้ กรุณาลองใหม่อีกครั้ง" },
         { status: 502 }
       );
     }

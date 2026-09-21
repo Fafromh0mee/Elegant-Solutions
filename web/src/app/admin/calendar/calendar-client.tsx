@@ -495,8 +495,8 @@ export function CalendarClient() {
               }
             >
               <option value="ALL">ทั้งหมด</option>
-              <option value="STUDENT">STUDENT</option>
-              <option value="GUEST">GUEST</option>
+              <option value="STUDENT">นักศึกษา</option>
+              <option value="GUEST">ผู้เยี่ยมชม</option>
             </select>
           </div>
         </div>
@@ -1013,7 +1013,7 @@ function EventDetailModal({
           </div>
           <div>
             <h3 className="font-semibold text-gray-900">
-              {isBooking ? "การจองห้อง" : "Session การใช้งาน"}
+              {isBooking ? "การจองห้อง" : "รายการใช้งาน"}
             </h3>
             <p className="text-sm text-gray-500">{event.roomName}</p>
           </div>

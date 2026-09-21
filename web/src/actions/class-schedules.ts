@@ -328,7 +328,7 @@ export async function importClassSchedulesAction(formData: FormData) {
     const rowNo = record.lineNo;
     const subjectKey = `${record.userId}|${record.subjectCode}|${record.semester}`;
     if (seenSubjectPerStudent.has(subjectKey)) {
-      rowErrors.push(`แถว ${rowNo}: ผู้ใช้คนเดิมลงวิชา ${record.subjectCode} ซ้ำในเทอม ${record.semester}`);
+      rowErrors.push(`แถว ${rowNo}: ผู้ใช้คนเดิมลงวิชา ${record.subjectCode} ซ้ำในภาคการศึกษา ${record.semester}`);
       invalidLineNos.add(rowNo);
       return;
     }
@@ -376,7 +376,7 @@ export async function importClassSchedulesAction(formData: FormData) {
     const existingSubjectSet = new Set(existingSubjectRows.map((s) => `${s.userId}|${s.subjectCode}|${semester}`));
     validRecords.forEach((record) => {
       if (existingSubjectSet.has(`${record.userId}|${record.subjectCode}|${record.semester}`)) {
-        rowErrors.push(`แถว ${record.lineNo}: ผู้ใช้คนเดิมลงวิชา ${record.subjectCode} ในเทอม ${record.semester} อยู่แล้ว`);
+        rowErrors.push(`แถว ${record.lineNo}: ผู้ใช้คนเดิมลงวิชา ${record.subjectCode} ในภาคการศึกษา ${record.semester} อยู่แล้ว`);
         invalidLineNos.add(record.lineNo);
       }
     });

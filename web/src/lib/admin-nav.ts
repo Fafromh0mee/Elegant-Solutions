@@ -20,21 +20,21 @@ export interface AdminNavLink {
 }
 
 export const adminLinks: AdminNavLink[] = [
-  { href: "/admin/dashboard", label: "Dashboard", icon: LayoutDashboard },
+  { href: "/admin/dashboard", label: "ภาพรวม", icon: LayoutDashboard },
   { href: "/admin/users", label: "จัดการผู้ใช้", icon: Users },
   { href: "/admin/rooms", label: "จัดการห้อง", icon: DoorOpen },
   { href: "/admin/calendar", label: "ตารางจองห้อง", icon: CalendarDays },
   { href: "/admin/schedule", label: "นำเข้าตารางเรียน", icon: Upload },
-  { href: "/admin/tracking", label: "Tracking Agent", icon: Activity },
+  { href: "/admin/tracking", label: "ติดตามการใช้งาน", icon: Activity },
   {
     href: "/admin/system",
-    label: "System Control",
+    label: "ควบคุมระบบ",
     icon: SlidersHorizontal,
     requiredRole: "SUPER_ADMIN",
   },
   { href: "/admin/logs", label: "ประวัติการใช้งาน", icon: FileText },
   { href: "/admin/reports", label: "รายงาน", icon: BarChart3 },
-  { href: "/admin/analytics", label: "Analytics", icon: LineChart },
+  { href: "/admin/analytics", label: "วิเคราะห์ข้อมูล", icon: LineChart },
 ];
 
 export function getAdminPageInfo(pathname: string) {

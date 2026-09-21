@@ -135,7 +135,7 @@ export function AnalyticsClient({ data }: { data: AnalyticsData }) {
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <SummaryCard
           icon={<DoorOpen className="h-5 w-5" />}
-          label="Session ทั้งหมด"
+          label="รายการใช้งานทั้งหมด"
           value={summary.totalSessions.toLocaleString()}
           sub={`${summary.activeSessions} กำลังใช้งาน`}
           tone="blue"
@@ -168,9 +168,9 @@ export function AnalyticsClient({ data }: { data: AnalyticsData }) {
         <div className="card lg:col-span-2">
           <div className="flex items-center justify-between mb-3">
             <div>
-              <h2 className="font-semibold text-gray-800">Sessions 30 วันล่าสุด</h2>
+              <h2 className="font-semibold text-gray-800">รายการใช้งานใน 30 วันล่าสุด</h2>
               <p className="text-xs text-gray-500 mt-0.5">
-                รวม {dailySessions.reduce((s, d) => s + d.count, 0).toLocaleString()} session
+                รวม {dailySessions.reduce((s, d) => s + d.count, 0).toLocaleString()} รายการ
               </p>
             </div>
             <TrendingUp className="h-5 w-5 text-blue-400" />

@@ -41,6 +41,7 @@ import {
   setStudentIdFirstLoginAction,
 } from "@/actions/profile";
 import { getMyClassSchedulesAction } from "@/actions/class-schedules";
+import { getRoleLabel } from "@/lib/ui-terms";
 import type { AuthUser } from "@/lib/types";
 import QRCode from "qrcode";
 
@@ -394,7 +395,7 @@ export function DashboardClient({ user }: { user: AuthUser }) {
         setError(data.error || data.message || "ลงทะเบียนไม่สำเร็จ");
       }
     } catch {
-      setError("ไม่สามารถเชื่อมต่อ AI Service ได้");
+      setError("ไม่สามารถตรวจสอบใบหน้าได้ในขณะนี้ กรุณาลองใหม่อีกครั้ง");
     }
     setLoading(false);
   }
@@ -550,7 +551,7 @@ export function DashboardClient({ user }: { user: AuthUser }) {
         margin: 2,
       });
       setQrDataUrl(url);
-      setSuccess("สร้าง Group QR Code สำเร็จ!");
+      setSuccess("สร้าง QR Code กลุ่มสำเร็จ!");
       loadData();
     }
     setLoading(false);
@@ -609,7 +610,7 @@ export function DashboardClient({ user }: { user: AuthUser }) {
               user.role === "STUDENT" ? "badge-student" : "badge-guest"
             }
           >
-            {user.role}
+            {getRoleLabel(user.role)}
           </span>
         </p>
       </div>
@@ -705,7 +706,7 @@ export function DashboardClient({ user }: { user: AuthUser }) {
         <div className="card mb-8">
           <div className="mb-4 flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
             <h2 className="text-lg font-semibold">ตารางเรียนของฉัน</h2>
-            <p className="text-xs text-gray-500">Student ID: {studentId}</p>
+            <p className="text-xs text-gray-500">รหัสนักศึกษา: {studentId}</p>
           </div>
 
           {mySchedules.length === 0 ? (
@@ -749,7 +750,7 @@ export function DashboardClient({ user }: { user: AuthUser }) {
                         {schedule.room.roomCode}
                       </p>
                       <p className="text-gray-700">
-                        <span className="font-medium text-gray-900">เทอม:</span>{" "}
+                        <span className="font-medium text-gray-900">ภาคการศึกษา:</span>{" "}
                         {schedule.semester ?? "-"}
                       </p>
                     </div>
@@ -766,7 +767,7 @@ export function DashboardClient({ user }: { user: AuthUser }) {
                       <th className="pb-2 pr-3">วิชา</th>
                       <th className="pb-2 pr-3">Section</th>
                       <th className="pb-2 pr-3">ห้อง</th>
-                      <th className="pb-2">เทอม</th>
+                      <th className="pb-2">ภาคการศึกษา</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -846,7 +847,7 @@ export function DashboardClient({ user }: { user: AuthUser }) {
               {faceEnrolled ? (
                 <>
                   <span className="flex items-center gap-1.5 text-sm text-green-600 font-medium">
-                    <CheckCircle2 className="h-4 w-4" /> Enrolled
+                    <CheckCircle2 className="h-4 w-4" /> ลงทะเบียนแล้ว
                   </span>
                   <button
                     onClick={() => {
@@ -1103,7 +1104,7 @@ export function DashboardClient({ user }: { user: AuthUser }) {
                           await handleFaceEnroll();
                         }}
                       >
-                        {loading ? "กำลังบันทึก..." : "ยืนยันและลงทะเบียน"}
+                        {loading ? "กำลังบันทึก..." : "ยืนยันการลงทะเบียน"}
                       </button>
                     </div>
                   </div>
@@ -1416,7 +1417,7 @@ export function DashboardClient({ user }: { user: AuthUser }) {
                     className="btn-secondary w-full mt-3 text-sm"
                   >
                     <QrCode className="h-4 w-4" />
-                    สร้าง Group QR
+                    สร้าง QR Code กลุ่ม
                   </button>
                 )}
               </div>
@@ -1431,7 +1432,7 @@ export function DashboardClient({ user }: { user: AuthUser }) {
           <div className="flex justify-between items-center mb-4">
             <h2 className="text-lg font-semibold">
               <QrCode className="inline h-5 w-5 mr-2" />
-              สร้าง Group QR
+              สร้าง QR Code กลุ่ม
             </h2>
             <button
               onClick={() => setShowGroupQR(false)}
@@ -1445,7 +1446,7 @@ export function DashboardClient({ user }: { user: AuthUser }) {
             <div className="text-center">
               <Image
                 src={qrDataUrl}
-                alt="Group QR Code"
+                alt="QR Code กลุ่ม"
                 width={300}
                 height={300}
                 className="mx-auto mb-4"
@@ -1557,7 +1558,7 @@ export function DashboardClient({ user }: { user: AuthUser }) {
                 className="btn-primary w-full"
                 disabled={loading}
               >
-                {loading ? "กำลังสร้าง..." : "สร้าง Group QR Code"}
+                {loading ? "กำลังสร้าง..." : "สร้าง QR Code กลุ่ม"}
               </button>
             </form>
           )}

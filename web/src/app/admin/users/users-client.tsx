@@ -13,6 +13,7 @@ import {
 import type { Role } from "@/lib/types";
 import { CheckCircle, XCircle } from "lucide-react";
 import { AdminPageHeader } from "@/components/admin-page-header";
+import { getRoleLabel } from "@/lib/ui-terms";
 
 interface UserItem {
   id: string;
@@ -272,10 +273,10 @@ export function UsersClient({ initialUsers }: { initialUsers: UserItem[] }) {
                   value={role}
                   onChange={(e) => setRole(e.target.value as Role)}
                 >
-                  <option value="STUDENT">STUDENT</option>
-                  <option value="ADMIN">ADMIN</option>
-                  <option value="SUPER_ADMIN">SUPER_ADMIN</option>
-                  <option value="GUEST">GUEST</option>
+                  <option value="STUDENT">นักศึกษา</option>
+                  <option value="ADMIN">ผู้ดูแลระบบ</option>
+                  <option value="SUPER_ADMIN">ผู้ดูแลระบบระดับสูง</option>
+                  <option value="GUEST">ผู้เยี่ยมชม</option>
                 </select>
               </div>
               <div>
@@ -357,10 +358,10 @@ export function UsersClient({ initialUsers }: { initialUsers: UserItem[] }) {
                   value={editRole}
                   onChange={(e) => setEditRole(e.target.value as Role)}
                 >
-                  <option value="STUDENT">STUDENT</option>
-                  <option value="ADMIN">ADMIN</option>
-                  <option value="SUPER_ADMIN">SUPER_ADMIN</option>
-                  <option value="GUEST">GUEST</option>
+                  <option value="STUDENT">นักศึกษา</option>
+                  <option value="ADMIN">ผู้ดูแลระบบ</option>
+                  <option value="SUPER_ADMIN">ผู้ดูแลระบบระดับสูง</option>
+                  <option value="GUEST">ผู้เยี่ยมชม</option>
                 </select>
               </div>
               <div>
@@ -387,13 +388,13 @@ export function UsersClient({ initialUsers }: { initialUsers: UserItem[] }) {
                 />
               </div>
               <div>
-                <label className="label">เหตุผลการแก้ไข Student ID</label>
+                <label className="label">เหตุผลการแก้ไขรหัสนักศึกษา</label>
                 <input
                   type="text"
                   className="input"
                   value={studentIdOverrideReason}
                   onChange={(e) => setStudentIdOverrideReason(e.target.value)}
-                  placeholder="จำเป็นสำหรับ ADMIN กรณี override"
+                  placeholder="จำเป็นสำหรับการแก้ไขโดยผู้ดูแลระบบ"
                 />
               </div>
             </div>
@@ -421,7 +422,7 @@ export function UsersClient({ initialUsers }: { initialUsers: UserItem[] }) {
           <input
             type="text"
             className="input pl-9 pr-9"
-            placeholder="ค้นหาชื่อ, อีเมล, Student ID..."
+            placeholder="ค้นหาชื่อ, อีเมล, รหัสนักศึกษา..."
             value={search}
             onChange={(e) => {
               setSearch(e.target.value);
@@ -454,7 +455,7 @@ export function UsersClient({ initialUsers }: { initialUsers: UserItem[] }) {
                 <th className="pb-3 pr-4">อีเมล</th>
                 <th className="pb-3 pr-4">บทบาท</th>
                 <th className="pb-3 pr-4">สถานะ</th>
-                <th className="pb-3 pr-4">Student ID</th>
+                <th className="pb-3 pr-4">รหัสนักศึกษา</th>
                 <th className="pb-3 pr-4">Face</th>
                 <th className="pb-3 pr-4">เบอร์โทร</th>
                 <th className="pb-3 pr-4">วันที่สร้าง</th>
@@ -478,7 +479,7 @@ export function UsersClient({ initialUsers }: { initialUsers: UserItem[] }) {
                             : "badge-guest"
                     }
                   >
-                    {user.role}
+                    {getRoleLabel(user.role)}
                   </span>
                 </td>
                 <td className="py-3 pr-4">
@@ -501,7 +502,7 @@ export function UsersClient({ initialUsers }: { initialUsers: UserItem[] }) {
                   {user.role !== "GUEST" ? (
                     user.faceEnrolled ? (
                       <span className="inline-flex items-center gap-1 text-green-600 text-xs font-medium">
-                        <ScanFace className="h-3.5 w-3.5" /> Enrolled
+                        <ScanFace className="h-3.5 w-3.5" /> ลงทะเบียนแล้ว
                       </span>
                     ) : (
                       <span className="text-gray-400 text-xs">

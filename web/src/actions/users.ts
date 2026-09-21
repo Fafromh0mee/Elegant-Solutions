@@ -24,7 +24,7 @@ export async function createUserAction(input: {
     (input.role === "ADMIN" || input.role === "SUPER_ADMIN") &&
     !isSuperAdmin(session.user.role)
   ) {
-    return { error: "เฉพาะ SUPER_ADMIN ที่กำหนดสิทธิ์ ADMIN/SUPER_ADMIN ได้" };
+    return { error: "เฉพาะผู้ดูแลระบบระดับสูงเท่านั้นที่กำหนดสิทธิ์ผู้ดูแลระบบได้" };
   }
 
   try {
@@ -121,7 +121,7 @@ export async function deleteUserAction(userId: string) {
       (target.role === "ADMIN" || target.role === "SUPER_ADMIN") &&
       !isSuperAdmin(session.user.role)
     ) {
-      return { error: "เฉพาะ SUPER_ADMIN ที่จัดการบัญชี ADMIN/SUPER_ADMIN ได้" };
+      return { error: "เฉพาะผู้ดูแลระบบระดับสูงเท่านั้นที่จัดการบัญชีผู้ดูแลระบบได้" };
     }
 
     await prisma.user.delete({ where: { id: userId } });
@@ -213,7 +213,7 @@ export async function updateUserAction(userId: string, data: {
     (data.role === "ADMIN" || data.role === "SUPER_ADMIN") &&
     !isSuperAdmin(session.user.role)
   ) {
-    return { error: "เฉพาะ SUPER_ADMIN ที่กำหนดสิทธิ์ ADMIN/SUPER_ADMIN ได้" };
+    return { error: "เฉพาะผู้ดูแลระบบระดับสูงเท่านั้นที่กำหนดสิทธิ์ผู้ดูแลระบบได้" };
   }
 
   try {
@@ -230,7 +230,7 @@ export async function updateUserAction(userId: string, data: {
       (target.role === "ADMIN" || target.role === "SUPER_ADMIN") &&
       !isSuperAdmin(session.user.role)
     ) {
-      return { error: "เฉพาะ SUPER_ADMIN ที่แก้ไขบัญชี ADMIN/SUPER_ADMIN ได้" };
+    return { error: "เฉพาะผู้ดูแลระบบระดับสูงเท่านั้นที่แก้ไขบัญชีผู้ดูแลระบบได้" };
     }
 
     // Check email uniqueness if email is being changed
@@ -290,7 +290,7 @@ export async function updateUserAction(userId: string, data: {
         if (!canDirectOverride && !overrideReason) {
           return {
             error:
-              "ADMIN แก้ไข Student ID ได้เฉพาะเคสแจ้งปัญหา กรุณาระบุเหตุผลการแก้ไข",
+              "ผู้ดูแลระบบแก้ไขรหัสนักศึกษาได้เฉพาะกรณีที่มีการแจ้งปัญหา กรุณาระบุเหตุผลการแก้ไข",
           };
         }
 

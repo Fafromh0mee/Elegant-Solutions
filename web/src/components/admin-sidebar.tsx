@@ -43,11 +43,11 @@ export function AdminSidebar() {
         <button
           onClick={() => setMobileOpen(true)}
           className="rounded-lg border bg-white p-2 text-gray-700 shadow-sm"
-          aria-label="Open admin menu"
+          aria-label="เปิดเมนูผู้ดูแลระบบ"
         >
           <Menu className="h-5 w-5" />
         </button>
-        <p className="text-sm font-semibold text-gray-900">Admin Panel</p>
+        <p className="text-sm font-semibold text-gray-900">แผงผู้ดูแลระบบ</p>
         <div className="w-9" />
       </div>
 
@@ -56,7 +56,7 @@ export function AdminSidebar() {
           type="button"
           className="fixed inset-0 z-40 bg-black/45 backdrop-blur-[1px] md:hidden"
           onClick={() => setMobileOpen(false)}
-          aria-label="Close admin menu overlay"
+          aria-label="ปิดเมนูผู้ดูแลระบบ"
         />
       )}
 
@@ -71,7 +71,7 @@ export function AdminSidebar() {
           {(!desktopCollapsed || mobileOpen) && (
             <div className="flex items-center gap-2">
               <Shield className="h-5 w-5 text-(--color-cta)" />
-              <span className="font-semibold text-gray-900">Admin Panel</span>
+              <span className="font-semibold text-gray-900">แผงผู้ดูแลระบบ</span>
             </div>
           )}
           <div className="flex items-center gap-1">
@@ -89,7 +89,7 @@ export function AdminSidebar() {
             <button
               onClick={() => setMobileOpen(false)}
               className="rounded-lg p-1.5 hover:bg-gray-100 md:hidden"
-              aria-label="Close admin menu"
+              aria-label="ปิดเมนูผู้ดูแลระบบ"
             >
               <X className="h-4 w-4" />
             </button>

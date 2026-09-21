@@ -239,7 +239,7 @@ export default function LoginPage() {
                     fill="#EA4335"
                   />
                 </svg>
-                เข้าสู่ระบบด้วย Google (Student)
+                เข้าสู่ระบบด้วย Google (นักศึกษา)
               </>
             )}
           </button>

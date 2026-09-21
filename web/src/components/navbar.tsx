@@ -110,12 +110,12 @@ export function Navbar() {
                     active={pathname.startsWith("/admin")}
                   >
                     <Shield className="h-4 w-4" />
-                    Admin
+                    ผู้ดูแลระบบ
                   </NavLink>
                 ) : (
                   <NavLink href="/dashboard" active={isActive("/dashboard")}>
                     <LayoutDashboard className="h-4 w-4" />
-                    Dashboard
+                  ภาพรวม
                   </NavLink>
                 )}
                 <NavLink href="/profile" active={isActive("/profile")}>
@@ -171,14 +171,14 @@ export function Navbar() {
                     href="/admin/dashboard"
                     onClick={() => setMobileOpen(false)}
                   >
-                    Admin Dashboard
+                    ภาพรวมผู้ดูแลระบบ
                   </MobileLink>
                 ) : (
                   <MobileLink
                     href="/dashboard"
                     onClick={() => setMobileOpen(false)}
                   >
-                    Dashboard
+                  ภาพรวม
                   </MobileLink>
                 )}
                 <MobileLink
