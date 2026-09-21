@@ -6,6 +6,15 @@ export type RoomApprovalPolicy = "AUTO" | "MANUAL";
 export type AcademicSlot = "SLOT_1" | "SLOT_2" | "SLOT_3" | "SLOT_4";
 export type BookingStatus = "PENDING" | "APPROVED" | "REJECTED" | "CANCELLED";
 
+/** Runtime list of RoomCapability, for validation and admin pickers. */
+export const ROOM_CAPABILITY_VALUES: readonly RoomCapability[] = [
+  "CLASSROOM",
+  "LAB",
+  "MEETING",
+  "WORKSHOP",
+  "EVENT",
+];
+
 export interface AuthUser {
   id: string;
   email: string;

@@ -457,6 +457,15 @@ async function main() {
   });
   console.log("✅ Seeded demo room closure: 1");
 
+  // The availability engine scopes class schedules to this semester, so the
+  // deterministic local demo needs it set without manual configuration.
+  await prisma.systemSetting.upsert({
+    where: { key: "ACTIVE_SEMESTER" },
+    update: { value: "2/2026" },
+    create: { key: "ACTIVE_SEMESTER", value: "2/2026" },
+  });
+  console.log("✅ Seeded system setting: ACTIVE_SEMESTER=2/2026");
+
   console.log("\n🎉 Seeding completed!");
   console.log("\n📋 Test Accounts:");
   console.log("  Admin: admin@elegant.com / admin123");

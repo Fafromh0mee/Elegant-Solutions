@@ -114,6 +114,30 @@ function parseAcademicDate(day: string | Date): { year: number; month: number; d
   return { year: Number(match[1]), month: Number(match[2]), dayOfMonth: Number(match[3]) };
 }
 
+/** True when the value is a real Asia/Bangkok calendar date in "YYYY-MM-DD" form. */
+export function isValidAcademicDate(value: string): boolean {
+  const match = value.trim().match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!match) return false;
+
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  const probe = new Date(Date.UTC(year, month - 1, day));
+
+  // Rejects rolled-over dates such as 2026-02-30.
+  return (
+    probe.getUTCFullYear() === year &&
+    probe.getUTCMonth() === month - 1 &&
+    probe.getUTCDate() === day
+  );
+}
+
+/** 0=Sunday … 6=Saturday for an Asia/Bangkok calendar date ("YYYY-MM-DD"). */
+export function academicDateToDayOfWeek(date: string): number {
+  const { year, month, dayOfMonth } = parseAcademicDate(date);
+  return new Date(Date.UTC(year, month - 1, dayOfMonth)).getUTCDay();
+}
+
 /**
  * Resolve a slot into concrete instants on a given Asia/Bangkok calendar day.
  * Bookings snapshot these so a later edit to ACADEMIC_SLOTS cannot rewrite history.
