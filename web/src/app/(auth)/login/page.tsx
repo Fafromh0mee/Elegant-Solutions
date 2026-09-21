@@ -1,12 +1,19 @@
 "use client";
 
-import { useState } from "react";
+import { use, useState } from "react";
 import { signIn } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Eye, EyeOff, LogIn } from "lucide-react";
+import { getSignInErrorMessage } from "@/lib/ui-terms";
 
-export default function LoginPage() {
+export default function LoginPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
+  // Auth.js redirects refused sign-ins here with ?error=<type> (pages.error in auth.ts).
+  const { error: authError } = use(searchParams);
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -14,10 +21,14 @@ export default function LoginPage() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
+  const [authErrorDismissed, setAuthErrorDismissed] = useState(false);
+  const shownError =
+    error || (typeof authError === "string" && !authErrorDismissed ? getSignInErrorMessage(authError) : "");
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
+    setAuthErrorDismissed(true);
     setLoading(true);
 
     try {
@@ -42,6 +53,7 @@ export default function LoginPage() {
 
   const handleGoogleSignIn = async () => {
     setError("");
+    setAuthErrorDismissed(true);
     setGoogleLoading(true);
     await signIn("google", { callbackUrl: "/dashboard" });
   };
@@ -133,9 +145,9 @@ export default function LoginPage() {
             นักศึกษา: เข้าระบบด้วย Google | Guest: ใช้อีเมลและรหัสผ่าน
           </div>
 
-          {error && (
+          {shownError && (
             <div className="mb-4 rounded-lg bg-red-50 border border-red-200 p-3 text-sm text-red-700">
-              {error}
+              {shownError}
             </div>
           )}
 

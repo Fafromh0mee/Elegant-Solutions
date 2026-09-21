@@ -253,3 +253,15 @@ export function getRoomAdminErrorMessage(code: string): string {
       return "ข้อมูลไม่ถูกต้อง";
   }
 }
+
+/** Message for Auth.js's `?error=` on /login. Unknown codes get a generic message. */
+export function getSignInErrorMessage(code: string): string {
+  switch (code) {
+    case "AccessDenied":
+      return "บัญชี Google นี้ไม่ได้รับสิทธิ์เข้าสู่ระบบ นักศึกษากรุณาใช้บัญชี @bumail.net ของมหาวิทยาลัย";
+    case "CredentialsSignin":
+      return "อีเมลหรือรหัสผ่านไม่ถูกต้อง";
+    default:
+      return "เข้าสู่ระบบไม่สำเร็จ กรุณาลองใหม่";
+  }
+}

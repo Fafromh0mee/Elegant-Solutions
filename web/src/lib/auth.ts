@@ -4,6 +4,7 @@ import Google from "next-auth/providers/google";
 import { compare, hash } from "bcryptjs";
 import { randomUUID } from "crypto";
 import { prisma } from "@/lib/prisma";
+import { evaluateGoogleSignIn, STUDENT_GOOGLE_DOMAIN } from "@/lib/google-sign-in";
 import type { AccountStatus, Role } from "@/lib/types";
 
 declare module "next-auth" {
@@ -37,6 +38,8 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
     Google({
       clientId: process.env.GOOGLE_CLIENT_ID,
       clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+      // Account-chooser hint only. Enforcement is evaluateGoogleSignIn below.
+      authorization: { params: { hd: STUDENT_GOOGLE_DOMAIN } },
     }),
     Credentials({
       name: "credentials",
@@ -90,6 +93,15 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         where: { email },
       });
 
+      const decision = evaluateGoogleSignIn({
+        email,
+        emailVerified: profile?.email_verified,
+        existingRole: existing?.role ?? null,
+      });
+      if (!decision.allow) {
+        return false;
+      }
+
       if (!existing) {
         const newUserId = `u_${randomUUID().replace(/-/g, "")}`;
         const oauthOnlyPassword = await hash(randomUUID(), 12);
@@ -124,10 +136,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         return true;
       }
 
-      const nextRole =
-        existing.role === "ADMIN" || existing.role === "SUPER_ADMIN"
-          ? existing.role
-          : "STUDENT";
+      const nextRole = decision.role;
 
       const updatedRows =
         nextRole === existing.role
@@ -175,6 +184,8 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
   },
   pages: {
     signIn: "/login",
+    // Refused sign-ins land on /login?error=AccessDenied instead of the built-in English page.
+    error: "/login",
   },
   session: {
     strategy: "jwt",
