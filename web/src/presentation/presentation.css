@@ -1,0 +1,10 @@
+/* Presentation-only layout overrides. Product components use viewport breakpoints
+   (md:/xl:), which do not know about the scaled 1280x720 stage - pin their grids. */
+
+.deck-cols-1 ul.grid {
+  grid-template-columns: repeat(1, minmax(0, 1fr)) !important;
+}
+
+.deck-flush > section {
+  margin-bottom: 0 !important;
+}
