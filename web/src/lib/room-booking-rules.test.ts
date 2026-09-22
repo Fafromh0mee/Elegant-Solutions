@@ -8,10 +8,16 @@ import {
   bookingStatusForPolicy,
   classifyParticipantConflicts,
   computeParticipantFingerprint,
+  adminBookingQueryString,
+  bookingDecisionLogDetails,
+  getParticipantBookingStatusLabel,
+  isInAccessWindow,
+  parseAdminBookingQuery,
+  parseDecisionNote,
   validateBookingRequest,
   type ParticipantBookingRow,
 } from "@/lib/room-booking-rules";
-import { getBookingErrorMessage } from "@/lib/ui-terms";
+import { getBookingDecisionErrorMessage, getBookingErrorMessage, getBookingStatusLabel } from "@/lib/ui-terms";
 
 // Feature 7 / 7.5 pure rules. No database, no clock: `now` is always passed in.
 // The suite is also run with TZ=America/New_York - nothing may depend on the host zone.
@@ -344,5 +350,67 @@ describe("audit details", () => {
     });
     expect(details).toBe("booking bk1 2026-09-28 SLOT_2,SLOT_3 participants=3 source=GROUP policy=MANUAL status=PENDING");
     expect(details).not.toMatch(/user|alice|bob|carol/i);
+  });
+});
+
+describe("Feature 8: decision rules", () => {
+  it("decision note: optional, trimmed, blank -> null, max 500, non-string rejected", () => {
+    expect(parseDecisionNote(undefined)).toEqual({ ok: true, note: null });
+    expect(parseDecisionNote(null)).toEqual({ ok: true, note: null });
+    expect(parseDecisionNote("   ")).toEqual({ ok: true, note: null });
+    expect(parseDecisionNote("  ห้องไม่ว่าง  ")).toEqual({ ok: true, note: "ห้องไม่ว่าง" });
+    expect(parseDecisionNote("x".repeat(500))).toMatchObject({ ok: true });
+    expect(parseDecisionNote("x".repeat(501))).toEqual({ ok: false });
+    expect(parseDecisionNote(42)).toEqual({ ok: false });
+  });
+
+  it("decision audit details: ids and codes only - never the note text or participant identities", () => {
+    const details = bookingDecisionLogDetails({
+      bookingId: "bk1",
+      date: "2026-09-28",
+      slots: ["SLOT_3", "SLOT_2"],
+      decision: "REJECTED",
+      participantCount: 3,
+      hasNote: true,
+    });
+    expect(details).toBe("booking bk1 2026-09-28 SLOT_2,SLOT_3 decision=REJECTED participants=3 note=yes");
+  });
+
+  it("access window is [first slot start, last slot end) on stored instants", () => {
+    const window = { startAt: "2026-09-28T05:00:00.000Z", endAt: "2026-09-28T09:50:00.000Z" };
+    expect(isInAccessWindow(window, bkk("2026-09-28", "11:59"))).toBe(false);
+    expect(isInAccessWindow(window, bkk("2026-09-28", "12:00"))).toBe(true);
+    expect(isInAccessWindow(window, bkk("2026-09-28", "16:49"))).toBe(true);
+    expect(isInAccessWindow(window, bkk("2026-09-28", "16:50"))).toBe(false);
+  });
+
+  it("participant status labels", () => {
+    expect(getParticipantBookingStatusLabel("PENDING", false)).toBe("รออนุมัติ");
+    expect(getParticipantBookingStatusLabel("PENDING", true)).toBe("รออนุมัติ");
+    expect(getParticipantBookingStatusLabel("APPROVED", false)).toBe("จองแล้ว");
+    expect(getParticipantBookingStatusLabel("APPROVED", true)).toBe("ใช้งานได้");
+    expect(getParticipantBookingStatusLabel("REJECTED", false)).toBe("ปฏิเสธแล้ว");
+    expect(getParticipantBookingStatusLabel("CANCELLED", false)).toBe("ยกเลิกแล้ว");
+    expect(getBookingStatusLabel("REJECTED")).toBe("ปฏิเสธแล้ว");
+  });
+
+  it("admin list query: defaults to the PENDING queue; malformed params dropped; round-trips", () => {
+    expect(parseAdminBookingQuery({})).toEqual({ status: "PENDING", date: null, roomId: null, page: 1 });
+    expect(parseAdminBookingQuery({ status: "nope", date: "2026-13-45x", page: "-1", roomId: ["a", "b"] })).toEqual({
+      status: "PENDING",
+      date: null,
+      roomId: null,
+      page: 1,
+    });
+    const query = parseAdminBookingQuery({ status: "REJECTED", date: "2026-09-28", roomId: "r1", page: "2" });
+    expect(query).toEqual({ status: "REJECTED", date: "2026-09-28", roomId: "r1", page: 2 });
+    expect(adminBookingQueryString(query)).toBe("?status=REJECTED&date=2026-09-28&roomId=r1&page=2");
+    expect(adminBookingQueryString(parseAdminBookingQuery({}))).toBe("");
+  });
+
+  it("admin decision messages name the blocking reason", () => {
+    expect(getBookingDecisionErrorMessage("CAPACITY_INSUFFICIENT", { remainingCapacity: 1 })).toContain("1 ที่");
+    expect(getBookingDecisionErrorMessage("NOT_PENDING", { currentStatus: "APPROVED" })).toContain("อนุมัติแล้ว");
+    expect(getBookingDecisionErrorMessage("INELIGIBLE_PARTICIPANT", { participantName: "Bob" })).toContain("Bob");
   });
 });

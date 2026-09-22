@@ -9,6 +9,7 @@ import {
 } from "@/lib/availability";
 import { loadRoomAvailabilityContexts, ROOM_SELECT } from "@/lib/availability-context";
 import { canBookRoom, isGuestEligibleRoom } from "@/lib/permissions";
+import { isContentionError, lockForBooking } from "@/lib/room-booking-locks";
 import {
   bookingCreatedLogDetails,
   bookingErrorForStatus,
@@ -16,6 +17,7 @@ import {
   classifyParticipantConflicts,
   computeParticipantFingerprint,
   DASHBOARD_BOOKINGS_LIMIT,
+  isInAccessWindow,
   validateBookingRequest,
   type BookingError,
   type BookingParticipantSelection,
@@ -67,39 +69,14 @@ import type {
 // row exists - later Group edits never retroactively change what an existing booking
 // authorizes.
 
-const USER_LOCK_NAMESPACE = "room-booking:user";
-const ROOM_LOCK_NAMESPACE = "room-booking:room";
-
-/** Takes one advisory lock per participant, sorted ascending, then the room+date lock
- *  last. Released automatically at commit/rollback. Sequential, never Promise.all -
- *  concurrency safety depends on lock acquisition actually happening in this order. */
-async function lockForBooking(tx: Prisma.TransactionClient, userIds: readonly string[], roomId: string, date: string) {
-  // Waiting longer means heavy contention; fail with BUSY instead of hanging the request.
-  await tx.$executeRaw`SET LOCAL lock_timeout = '5s'`;
-  // $executeRaw, not $queryRaw: pg_advisory_xact_lock returns void, which cannot be deserialized.
-  for (const userId of [...userIds].sort()) {
-    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${USER_LOCK_NAMESPACE}), hashtext(${userId}))`;
-  }
-  await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${ROOM_LOCK_NAMESPACE}), hashtext(${`${roomId}:${date}`}))`;
-}
-
-/** Lock timeout (55P03), deadlock (40P01), or a transaction that could not start/finish in time. */
-function isContentionError(error: unknown): boolean {
-  if (!(error instanceof Prisma.PrismaClientKnownRequestError)) return false;
-  if (error.code === "P2028" || error.code === "P2034") return true;
-  if (error.code !== "P2010") return false;
-  const detail = `${error.message} ${JSON.stringify(error.meta ?? {})}`;
-  return detail.includes("55P03") || detail.includes("40P01");
-}
-
 /** "YYYY-MM-DD" (Bangkok calendar date) -> the DATE value Postgres stores. */
-function toDateColumn(date: string): Date {
+export function toDateColumn(date: string): Date {
   return new Date(`${date}T00:00:00Z`);
 }
 
-const BOOKING_ROOM_SELECT = { ...ROOM_SELECT, guestAccess: true, staffOnly: true } satisfies Prisma.RoomSelect;
+export const BOOKING_ROOM_SELECT = { ...ROOM_SELECT, guestAccess: true, staffOnly: true } satisfies Prisma.RoomSelect;
 
-type BookingRoom = Prisma.RoomGetPayload<{ select: typeof BOOKING_ROOM_SELECT }>;
+export type BookingRoom = Prisma.RoomGetPayload<{ select: typeof BOOKING_ROOM_SELECT }>;
 
 function toAvailabilityRoom(room: BookingRoom): AvailabilityRoom {
   return {
@@ -117,7 +94,7 @@ function toAvailabilityRoom(room: BookingRoom): AvailabilityRoom {
 }
 
 /** Feature 3, unchanged: the same loader and evaluator as the finder, on the given client. */
-async function evaluateRoom(
+export async function evaluateRoom(
   db: Prisma.TransactionClient,
   room: BookingRoom,
   request: { date: string; slots: AcademicSlot[]; requiredCapability: RoomCapability | null },
@@ -135,7 +112,7 @@ async function evaluateRoom(
   return evaluateAvailability(context, validated.request);
 }
 
-async function loadActiveBookingsForParticipants(
+export async function loadActiveBookingsForParticipants(
   db: Prisma.TransactionClient,
   userIds: readonly string[],
   date: string
@@ -224,7 +201,7 @@ interface ParticipantEligibility {
   status: AccountStatus;
 }
 
-async function loadParticipantEligibility(
+export async function loadParticipantEligibility(
   db: Prisma.TransactionClient,
   userIds: readonly string[]
 ): Promise<ParticipantEligibility[]> {
@@ -240,12 +217,12 @@ async function loadParticipantEligibility(
 }
 
 /** First ineligible participant (STUDENT / approved-GUEST only), sorted for determinism. */
-function findIneligibleParticipant(rows: readonly ParticipantEligibility[]): ParticipantEligibility | null {
+export function findIneligibleParticipant(rows: readonly ParticipantEligibility[]): ParticipantEligibility | null {
   return [...rows].sort((a, b) => a.userId.localeCompare(b.userId)).find((row) => !canBookRoom(row.role, row.status)) ?? null;
 }
 
 /** First GUEST participant, when the room does not allow guests at all. */
-function findGuestRoomConflict(rows: readonly ParticipantEligibility[], room: BookingRoom): ParticipantEligibility | null {
+export function findGuestRoomConflict(rows: readonly ParticipantEligibility[], room: BookingRoom): ParticipantEligibility | null {
   if (isGuestEligibleRoom(room)) return null;
   return [...rows].sort((a, b) => a.userId.localeCompare(b.userId)).find((row) => row.role === "GUEST") ?? null;
 }
@@ -566,6 +543,11 @@ export interface OwnBooking {
   /** Read-only roster: who this booking authorizes. Always includes the creator. */
   participants: BookingParticipantView[];
   creatorName: string;
+  /** APPROVED and `now` is inside [first slot start, last slot end). */
+  inAccessWindow: boolean;
+  decidedAt: string | null;
+  /** The admin's optional note (shown for REJECTED). */
+  decisionReason: string | null;
 }
 
 /**
@@ -573,7 +555,7 @@ export interface OwnBooking {
  * creator. A booking id the viewer does not participate in returns null, exactly like
  * a missing one, so ids cannot be probed.
  */
-export async function getOwnBooking(bookingId: string, userId: string): Promise<OwnBooking | null> {
+export async function getOwnBooking(bookingId: string, userId: string, now: Date = new Date()): Promise<OwnBooking | null> {
   if (typeof bookingId !== "string" || bookingId.length === 0 || bookingId.length > 64) return null;
   const booking = await prisma.roomBooking.findFirst({
     where: { id: bookingId, participants: { some: { userId } } },
@@ -584,6 +566,8 @@ export async function getOwnBooking(bookingId: string, userId: string): Promise<
       partySize: true,
       createdAt: true,
       userId: true,
+      decidedAt: true,
+      decisionReason: true,
       slots: { select: { slot: true, startAt: true, endAt: true }, orderBy: { startAt: "asc" } },
       room: {
         select: {
@@ -606,6 +590,8 @@ export async function getOwnBooking(bookingId: string, userId: string): Promise<
   if (!booking) return null;
 
   const creator = booking.participants.find((p) => p.userId === booking.userId);
+  const first = booking.slots[0];
+  const last = booking.slots[booking.slots.length - 1];
   return {
     id: booking.id,
     status: booking.status as BookingStatus,
@@ -629,6 +615,12 @@ export async function getOwnBooking(bookingId: string, userId: string): Promise<
       isCreator: p.userId === booking.userId,
     })),
     creatorName: creator?.user.name ?? "",
+    inAccessWindow:
+      booking.status === "APPROVED" &&
+      !!first &&
+      isInAccessWindow({ startAt: first.startAt.toISOString(), endAt: last.endAt.toISOString() }, now),
+    decidedAt: booking.decidedAt?.toISOString() ?? null,
+    decisionReason: booking.decisionReason,
   };
 }
 
@@ -684,6 +676,12 @@ export async function loadDashboardBookings(params: {
       slots: row.slots.map((entry) => entry.slot as AcademicSlot),
       startAt: row.slots[0].startAt.toISOString(),
       endAt: row.slots[row.slots.length - 1].endAt.toISOString(),
+      inAccessWindow:
+        row.status === "APPROVED" &&
+        isInAccessWindow(
+          { startAt: row.slots[0].startAt.toISOString(), endAt: row.slots[row.slots.length - 1].endAt.toISOString() },
+          now
+        ),
       isCreator: row.userId === viewer.userId,
       creatorName: row.user.name,
     }))

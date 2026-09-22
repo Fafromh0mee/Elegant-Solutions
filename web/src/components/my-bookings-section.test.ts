@@ -19,12 +19,18 @@ const booking = (patch: Partial<DashboardBooking> = {}): DashboardBooking => ({
   slots: ["SLOT_2", "SLOT_3"],
   startAt: "2026-09-28T05:00:00.000Z", // 12:00 Bangkok
   endAt: "2026-09-28T09:50:00.000Z", // 16:50 Bangkok
+  inAccessWindow: false,
   isCreator: true,
   creatorName: "สมชาย ใจดี",
   ...patch,
 });
 
 describe("card content", () => {
+  it("APPROVED inside its access window: 'ใช้งานได้'; PENDING never is, whatever the flag", () => {
+    expect(toDashboardBookingCard(booking({ inAccessWindow: true })).statusLabel).toBe("ใช้งานได้");
+    expect(toDashboardBookingCard(booking({ status: "PENDING", inAccessWindow: true })).statusLabel).toBe("รออนุมัติ");
+  });
+
   it("APPROVED: room, date, slots, Bangkok time range, party size, 'จองแล้ว', owner-page link", () => {
     expect(toDashboardBookingCard(booking())).toEqual({
       id: "bk1",

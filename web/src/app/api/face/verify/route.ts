@@ -1,17 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { checkInAction, checkOutAction } from "@/actions/sessions";
+import { resolveRoomEntitlement } from "@/lib/room-entitlement";
 
 const AI_SERVICE_URL = process.env.AI_SERVICE_URL || "http://localhost:8000";
 const FACE_THRESHOLD = parseFloat(process.env.FACE_THRESHOLD || "0.73");
-
-function getCurrentDayAndTime() {
-  const now = new Date();
-  const dayOfWeek = now.getDay();
-  const hh = String(now.getHours()).padStart(2, "0");
-  const mm = String(now.getMinutes()).padStart(2, "0");
-  return { dayOfWeek, currentTime: `${hh}:${mm}` };
-}
 
 export async function POST(req: NextRequest) {
   try {
@@ -146,82 +139,21 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    // Enforce student policy: must have current class schedule or active room registration.
+    // Booking-tier users (STUDENT, GUEST) need a current entitlement for THIS room, for
+    // THIS matched user only: a class, an APPROVED booking they participate in, or a
+    // legacy token issued to them. ADMIN/SUPER_ADMIN are not entitlement-checked here
+    // (unchanged existing policy).
     let scheduledCheckOut: Date | undefined;
-    if (user.role === "STUDENT") {
-      const { dayOfWeek, currentTime } = getCurrentDayAndTime();
+    if (user.role === "STUDENT" || user.role === "GUEST") {
+      const entitlement = await resolveRoomEntitlement({ userId: user.id, roomId: room.id, now: new Date() });
 
-      const currentClass = await prisma.classSchedule.findFirst({
-        where: {
-          userId: user.id,
-          roomId: room.id,
-          dayOfWeek,
-          startTime: { lte: currentTime },
-          endTime: { gte: currentTime },
-        },
-        select: { id: true, endTime: true },
-      });
-
-      let hasRegistration = false;
-      let tokenValidTo: Date | null = null;
-      if (!currentClass) {
-        const now = new Date();
-
-        const directToken = await prisma.accessToken.findFirst({
-          where: {
-            userId: user.id,
-            roomId: room.id,
-            validFrom: { lte: now },
-            validTo: { gte: now },
-          },
-          select: { id: true, validTo: true },
-        });
-
-        if (directToken) {
-          hasRegistration = true;
-          tokenValidTo = directToken.validTo;
-        } else {
-          const groupToken = await prisma.accessToken.findFirst({
-            where: {
-              groupId: { not: null },
-              roomId: room.id,
-              validFrom: { lte: now },
-              validTo: { gte: now },
-              group: {
-                members: {
-                  some: {
-                    userId: user.id,
-                  },
-                },
-              },
-            },
-            select: { id: true, validTo: true },
-          });
-
-          if (groupToken) {
-            hasRegistration = true;
-            tokenValidTo = groupToken.validTo;
-          }
-        }
-      }
-
-      // Compute when this session should auto-expire
-      if (currentClass) {
-        const [endHH, endMM] = currentClass.endTime.split(":").map(Number);
-        const d = new Date();
-        d.setHours(endHH, endMM, 0, 0);
-        scheduledCheckOut = d;
-      } else if (tokenValidTo) {
-        scheduledCheckOut = tokenValidTo;
-      }
-
-      if (!currentClass && !hasRegistration) {
+      if (!entitlement.allowed) {
         await prisma.log.create({
           data: {
             userId: user.id,
             roomId: room.id,
             action: "ACCESS_DENIED",
-            details: "Denied: student has no current class schedule and no active room registration",
+            details: "Denied: no current class, approved booking or access token for this room",
           },
         });
 
@@ -230,10 +162,12 @@ export async function POST(req: NextRequest) {
           face_detected: true,
           score: aiData.score,
           access_granted: false,
-          message: "ไม่พบตารางเรียนหรือรายการลงทะเบียนขอเข้าใช้ห้องในเวลานี้ กรุณาลงทะเบียนขอเข้าใช้ห้องก่อนใช้งาน",
+          message: "ไม่พบตารางเรียนหรือการจองที่อนุมัติแล้วสำหรับห้องนี้ในเวลานี้",
           user: { id: user.id, name: user.name, role: user.role },
         });
       }
+
+      scheduledCheckOut = entitlement.validUntil;
     }
 
     // Try check-in, if already checked in → check-out

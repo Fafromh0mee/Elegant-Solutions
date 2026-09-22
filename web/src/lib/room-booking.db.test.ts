@@ -879,10 +879,13 @@ describe("dashboard การจองของฉัน (loadDashboardBookings)
       slots: ["SLOT_3", "SLOT_4"],
       startAt: "2030-01-07T07:30:00.000Z", // 14:30 Bangkok
       endAt: "2030-01-07T12:20:00.000Z", // 19:20 Bangkok
+      inAccessWindow: false,
       isCreator: true,
       creatorName: expect.stringContaining("ZZTEST"),
     });
-    expect(list?.[1]).toMatchObject({ id: pending, status: "PENDING" });
+    expect(list?.[1]).toMatchObject({ id: pending, status: "PENDING", inAccessWindow: false });
+    // Feature 8: the in-progress APPROVED booking is "ใช้งานได้" on the dashboard.
+    expect(list?.[0]).toMatchObject({ id: current, status: "APPROVED", inAccessWindow: true });
   });
 
   it("a non-creator PARTICIPANT (added via a group) also sees the booking, with isCreator=false and the creator's name", async () => {

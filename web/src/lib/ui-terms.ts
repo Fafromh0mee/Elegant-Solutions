@@ -46,7 +46,7 @@ export function getBookingStatusLabel(status: string): string {
     case "APPROVED":
       return "อนุมัติแล้ว";
     case "REJECTED":
-      return "ไม่อนุมัติ";
+      return "ปฏิเสธแล้ว";
     case "CANCELLED":
       return "ยกเลิกแล้ว";
     default:
@@ -355,6 +355,51 @@ export function getBookingErrorMessage(code: string, detail?: number | string): 
       return "จองห้องไม่สำเร็จ กรุณาลองใหม่อีกครั้ง";
     default:
       return getRoomFinderErrorMessage(code);
+  }
+}
+
+/** Feature 8: why an admin's approve/reject did not go through (admin-facing wording). */
+export function getBookingDecisionErrorMessage(code: string, detail?: { currentStatus?: string; remainingCapacity?: number; participantName?: string }): string {
+  const who = detail?.participantName;
+  switch (code) {
+    case "NOT_ALLOWED":
+      return "ไม่มีสิทธิ์อนุมัติหรือปฏิเสธการจอง";
+    case "BOOKING_NOT_FOUND":
+      return "ไม่พบการจองนี้";
+    case "NOT_PENDING":
+      return detail?.currentStatus
+        ? `การจองนี้ถูกดำเนินการไปแล้ว (สถานะปัจจุบัน: ${getBookingStatusLabel(detail.currentStatus)})`
+        : "การจองนี้ไม่ได้อยู่ในสถานะรออนุมัติแล้ว";
+    case "INVALID_NOTE":
+      return "หมายเหตุยาวเกินไป (ไม่เกิน 500 ตัวอักษร)";
+    case "BOOKING_EXPIRED":
+      return "เลยช่วงเวลาของการจองนี้แล้ว จึงอนุมัติไม่ได้";
+    case "INELIGIBLE_PARTICIPANT":
+      return who ? `${who} ไม่มีสิทธิ์ใช้ห้องแล้ว (บัญชีถูกเปลี่ยนสถานะหรือบทบาท)` : "มีผู้เข้าร่วมที่ไม่มีสิทธิ์ใช้ห้องแล้ว";
+    case "GUEST_ROOM_NOT_ALLOWED":
+      return who ? `ห้องนี้ไม่เปิดให้บุคคลภายนอก แต่ ${who} เป็นบุคคลภายนอก` : "ห้องนี้ไม่เปิดให้บุคคลภายนอกแล้ว";
+    case "DUPLICATE_BOOKING":
+      return who ? `${who} มีการจองห้องนี้ในช่วงเวลาที่ทับซ้อนอยู่แล้ว` : "มีการจองซ้ำในช่วงเวลาเดียวกันอยู่แล้ว";
+    case "OVERLAPPING_BOOKING":
+      return who ? `${who} มีการจองห้องอื่นในช่วงเวลานี้อยู่แล้ว` : "ผู้เข้าร่วมมีการจองอื่นในช่วงเวลานี้อยู่แล้ว";
+    case "ROOM_NOT_BOOKABLE":
+      return "ขณะนี้ห้องปิดใช้งานหรือปิดการจองอยู่ จึงอนุมัติไม่ได้";
+    case "CAPABILITY_CHANGED":
+      return "ห้องไม่ตรงกับประเภทพื้นที่ที่ขอแล้ว";
+    case "OUTSIDE_WINDOW":
+      return "ขณะนี้ห้องไม่เปิดให้ใช้ในช่วงเวลาของการจองนี้แล้ว";
+    case "CLOSED":
+      return "ห้องปิดปรับปรุงในช่วงเวลาของการจองนี้";
+    case "CLASS_IN_SESSION":
+      return "มีการเรียนการสอนในห้องนี้ในช่วงเวลาของการจอง";
+    case "CAPACITY_INSUFFICIENT":
+      return typeof detail?.remainingCapacity === "number" && detail.remainingCapacity > 0
+        ? `ที่ว่างไม่พอแล้ว เหลือเพียง ${detail.remainingCapacity} ที่ในช่วงเวลานี้`
+        : "ห้องเต็มแล้วในช่วงเวลาของการจองนี้ (มีการจองที่อนุมัติแล้วใช้ที่ครบ)";
+    case "BUSY":
+      return "มีการดำเนินการกับห้องนี้พร้อมกันจำนวนมาก กรุณาลองใหม่อีกครั้ง";
+    default:
+      return "ดำเนินการไม่สำเร็จ กรุณาลองใหม่อีกครั้ง";
   }
 }
 

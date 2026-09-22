@@ -9,6 +9,7 @@ import {
   Activity,
   SlidersHorizontal,
   LineChart,
+  ClipboardCheck,
   LucideIcon,
 } from "lucide-react";
 
@@ -23,6 +24,7 @@ export const adminLinks: AdminNavLink[] = [
   { href: "/admin/dashboard", label: "ภาพรวม", icon: LayoutDashboard },
   { href: "/admin/users", label: "จัดการผู้ใช้", icon: Users },
   { href: "/admin/rooms", label: "จัดการห้อง", icon: DoorOpen },
+  { href: "/admin/bookings", label: "คำขอจองห้อง", icon: ClipboardCheck },
   { href: "/admin/calendar", label: "ตารางจองห้อง", icon: CalendarDays },
   { href: "/admin/schedule", label: "นำเข้าตารางเรียน", icon: Upload },
   { href: "/admin/tracking", label: "ติดตามการใช้งาน", icon: Activity },

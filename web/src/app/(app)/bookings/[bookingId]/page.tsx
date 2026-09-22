@@ -1,11 +1,12 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import type { ReactNode } from "react";
-import { CheckCircle2, Clock, User, Users, XCircle } from "lucide-react";
+import { Ban, CheckCircle2, Clock, DoorOpen, User, Users, XCircle } from "lucide-react";
 import { auth } from "@/lib/auth";
 import { getLocationLabel, getSlotRangeLabel } from "@/lib/room-finder";
-import { getOwnBooking } from "@/lib/room-booking";
-import { formatAcademicDate, getApprovalPolicyLabel, getBookingStatusLabel } from "@/lib/ui-terms";
+import { getOwnBooking, type OwnBooking } from "@/lib/room-booking";
+import { getParticipantBookingStatusLabel } from "@/lib/room-booking-rules";
+import { formatAcademicDate, getApprovalPolicyLabel } from "@/lib/ui-terms";
 
 // Booking result / detail (Feature 7 / 7.5). Viewable by any participant the booking
 // covers, not just its creator (RoomBookingParticipant is the source of truth for who
@@ -28,7 +29,7 @@ export default async function BookingResultPage({ params }: { params: Promise<{ 
   return (
     <div className="mx-auto max-w-2xl">
       <div className="card">
-        <StatusHeader status={booking.status} />
+        <StatusHeader booking={booking} />
         {!viewerIsCreator && <p className="mt-2 text-sm text-gray-500">จองโดย {booking.creatorName}</p>}
 
         <dl className="mt-5 grid grid-cols-[auto_1fr] gap-x-4 gap-y-3 text-sm">
@@ -40,7 +41,7 @@ export default async function BookingResultPage({ params }: { params: Promise<{ 
           <Row label="วันที่">{formatAcademicDate(booking.date)}</Row>
           <Row label="เวลา">{getSlotRangeLabel(slots)}</Row>
           <Row label="จำนวนผู้เข้าร่วม">{booking.partySize} คน</Row>
-          <Row label="สถานะ">{getBookingStatusLabel(booking.status)}</Row>
+          <Row label="สถานะ">{getParticipantBookingStatusLabel(booking.status, booking.inAccessWindow)}</Row>
           <Row label="การอนุมัติ">{getApprovalPolicyLabel(booking.room.approvalPolicy)}</Row>
           <Row label="หมายเลขการจอง">
             <span className="font-mono text-xs break-all">{booking.id}</span>
@@ -77,8 +78,19 @@ export default async function BookingResultPage({ params }: { params: Promise<{ 
   );
 }
 
-function StatusHeader({ status }: { status: string }) {
-  if (status === "APPROVED") {
+function StatusHeader({ booking }: { booking: OwnBooking }) {
+  if (booking.status === "APPROVED" && booking.inAccessWindow) {
+    return (
+      <div className="flex items-start gap-3">
+        <DoorOpen className="h-8 w-8 shrink-0 text-green-600" />
+        <div>
+          <h1 className="text-xl font-bold text-gray-900">ใช้งานได้</h1>
+          <p className="text-sm text-gray-600">ขณะนี้อยู่ในช่วงเวลาของการจองนี้</p>
+        </div>
+      </div>
+    );
+  }
+  if (booking.status === "APPROVED") {
     return (
       <div className="flex items-start gap-3">
         <CheckCircle2 className="h-8 w-8 shrink-0 text-green-600" />
@@ -89,7 +101,7 @@ function StatusHeader({ status }: { status: string }) {
       </div>
     );
   }
-  if (status === "PENDING") {
+  if (booking.status === "PENDING") {
     return (
       <div className="flex items-start gap-3">
         <Clock className="h-8 w-8 shrink-0 text-amber-600" />
@@ -102,11 +114,27 @@ function StatusHeader({ status }: { status: string }) {
       </div>
     );
   }
+  if (booking.status === "REJECTED") {
+    return (
+      <div className="flex items-start gap-3">
+        <XCircle className="h-8 w-8 shrink-0 text-red-600" />
+        <div>
+          <h1 className="text-xl font-bold text-gray-900">คำขอจองถูกปฏิเสธ</h1>
+          <p className="text-sm text-gray-600">ผู้ดูแลระบบปฏิเสธคำขอนี้ การจองนี้ไม่ให้สิทธิ์เข้าใช้ห้อง</p>
+          {booking.decisionReason && (
+            <p className="mt-2 rounded-lg border border-red-200 bg-red-50 p-2 text-sm text-red-800">
+              หมายเหตุจากผู้ดูแล: {booking.decisionReason}
+            </p>
+          )}
+        </div>
+      </div>
+    );
+  }
   return (
     <div className="flex items-start gap-3">
-      <XCircle className="h-8 w-8 shrink-0 text-gray-400" />
+      <Ban className="h-8 w-8 shrink-0 text-gray-400" />
       <div>
-        <h1 className="text-xl font-bold text-gray-900">การจอง{getBookingStatusLabel(status)}</h1>
+        <h1 className="text-xl font-bold text-gray-900">การจองถูกยกเลิกแล้ว</h1>
       </div>
     </div>
   );

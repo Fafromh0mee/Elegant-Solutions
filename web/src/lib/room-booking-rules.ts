@@ -226,6 +226,118 @@ export function bookingCreatedLogDetails(input: {
   return `booking ${input.bookingId} ${input.date} ${slots.join(",")} participants=${input.participantCount} source=${input.source} policy=${input.policy} status=${input.status}`;
 }
 
+// --- Feature 8: admin approve / reject ------------------------------------------------
+
+export type BookingDecision = "APPROVE" | "REJECT";
+
+export type BookingDecisionError =
+  /** Caller is not (or is no longer, per the database) ADMIN/SUPER_ADMIN. */
+  | "NOT_ALLOWED"
+  | "BOOKING_NOT_FOUND"
+  /** Already APPROVED/REJECTED/CANCELLED - nothing changed, nothing logged. */
+  | "NOT_PENDING"
+  | "INVALID_NOTE"
+  /** Every slot of the booking has already ended. */
+  | "BOOKING_EXPIRED"
+  | "INELIGIBLE_PARTICIPANT"
+  | "GUEST_ROOM_NOT_ALLOWED"
+  | "DUPLICATE_BOOKING"
+  | "OVERLAPPING_BOOKING"
+  | "ROOM_NOT_BOOKABLE"
+  | "CAPABILITY_CHANGED"
+  | "OUTSIDE_WINDOW"
+  | "CLOSED"
+  | "CLASS_IN_SESSION"
+  | "CAPACITY_INSUFFICIENT"
+  | "BUSY"
+  | "FAILED";
+
+export const DECISION_NOTE_MAX_LENGTH = 500;
+
+/** Optional admin note (stored in RoomBooking.decisionReason). Blank -> null. */
+export function parseDecisionNote(value: unknown): { ok: true; note: string | null } | { ok: false } {
+  if (value === undefined || value === null) return { ok: true, note: null };
+  if (typeof value !== "string") return { ok: false };
+  const note = value.trim();
+  if (note.length > DECISION_NOTE_MAX_LENGTH) return { ok: false };
+  return { ok: true, note: note.length > 0 ? note : null };
+}
+
+/** Audit details for ROOM_BOOKING_APPROVED / _REJECTED. IDs and codes only - never the
+ *  note's free text, names, emails or participant ids. The decider is Log.userId. */
+export function bookingDecisionLogDetails(input: {
+  bookingId: string;
+  date: string;
+  slots: readonly AcademicSlot[];
+  decision: Extract<BookingStatus, "APPROVED" | "REJECTED">;
+  participantCount: number;
+  hasNote: boolean;
+}): string {
+  const slots = [...input.slots].sort((a, b) => getSlotDefinition(a).order - getSlotDefinition(b).order);
+  return `booking ${input.bookingId} ${input.date} ${slots.join(",")} decision=${input.decision} participants=${input.participantCount} note=${input.hasNote ? "yes" : "no"}`;
+}
+
+export const ADMIN_BOOKING_STATUS_FILTERS = ["PENDING", "APPROVED", "REJECTED", "CANCELLED", "ALL"] as const;
+export type AdminBookingStatusFilter = (typeof ADMIN_BOOKING_STATUS_FILTERS)[number];
+export const ADMIN_BOOKINGS_PAGE_SIZE = 25;
+
+export interface AdminBookingListQuery {
+  /** Defaults to PENDING: the admin's work queue. */
+  status: AdminBookingStatusFilter;
+  date: string | null;
+  roomId: string | null;
+  page: number;
+}
+
+/** Untrusted URL search params -> a safe admin list query. Anything malformed is dropped. */
+export function parseAdminBookingQuery(params: Record<string, string | string[] | undefined>): AdminBookingListQuery {
+  const one = (key: string) => {
+    const value = params[key];
+    return typeof value === "string" ? value : undefined;
+  };
+  const status = one("status");
+  const date = one("date");
+  const roomId = one("roomId");
+  const page = Number(one("page"));
+  return {
+    status: ADMIN_BOOKING_STATUS_FILTERS.includes(status as AdminBookingStatusFilter) ? (status as AdminBookingStatusFilter) : "PENDING",
+    date: date && /^\d{4}-\d{2}-\d{2}$/.test(date) && !Number.isNaN(Date.parse(`${date}T00:00:00Z`)) ? date : null,
+    roomId: roomId && roomId.length <= 64 ? roomId : null,
+    page: Number.isInteger(page) && page >= 1 && page <= 10_000 ? page : 1,
+  };
+}
+
+export function adminBookingQueryString(query: AdminBookingListQuery, patch: Partial<AdminBookingListQuery> = {}): string {
+  const next = { ...query, ...patch };
+  const search = new URLSearchParams();
+  if (next.status !== "PENDING") search.set("status", next.status);
+  if (next.date) search.set("date", next.date);
+  if (next.roomId) search.set("roomId", next.roomId);
+  if (next.page > 1) search.set("page", String(next.page));
+  const text = search.toString();
+  return text ? `?${text}` : "";
+}
+
+/** The booking's stored slot instants span `now`: [first start, last end). */
+export function isInAccessWindow(window: { startAt: string; endAt: string }, now: Date): boolean {
+  const t = now.getTime();
+  return new Date(window.startAt).getTime() <= t && t < new Date(window.endAt).getTime();
+}
+
+/** What a participant sees for their booking's status. */
+export function getParticipantBookingStatusLabel(status: BookingStatus, inAccessWindow: boolean): string {
+  switch (status) {
+    case "PENDING":
+      return "รออนุมัติ";
+    case "APPROVED":
+      return inAccessWindow ? "ใช้งานได้" : "จองแล้ว";
+    case "REJECTED":
+      return "ปฏิเสธแล้ว";
+    case "CANCELLED":
+      return "ยกเลิกแล้ว";
+  }
+}
+
 // --- Dashboard "การจองของฉัน" (compact; the full list is Feature 7b) ------------------
 
 /** How many active bookings the dashboard shows. */
@@ -243,6 +355,8 @@ export interface DashboardBooking {
   slots: AcademicSlot[]; // in slot order
   startAt: string; // ISO instant: first slot's stored start
   endAt: string; // ISO instant: last slot's stored end
+  /** Server clock at load time was inside [startAt, endAt). */
+  inAccessWindow: boolean;
   /** True when the viewer made this booking; false when they're an authorized
    *  participant added via a Group someone else booked with. */
   isCreator: boolean;
@@ -297,7 +411,7 @@ export function toDashboardBookingCard(booking: DashboardBooking): DashboardBook
     timeLabel: `${bangkokTime(booking.startAt)}–${bangkokTime(booking.endAt)}`,
     partySizeLabel: `${booking.partySize} คน`,
     status: booking.status,
-    statusLabel: approved ? "จองแล้ว" : "รออนุมัติ",
+    statusLabel: getParticipantBookingStatusLabel(booking.status, booking.inAccessWindow),
     note: approved ? null : PENDING_BOOKING_NOTE,
     creatorLine: booking.isCreator ? null : `จองโดย ${booking.creatorName}`,
   };
