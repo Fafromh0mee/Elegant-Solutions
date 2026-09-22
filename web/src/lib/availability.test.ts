@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   evaluateAvailability,
+  evaluateDayAvailability,
   isClassScheduleInForce,
   summarizeBookingCapacity,
   validateAvailabilityRequest,
@@ -382,5 +383,71 @@ describe("28. Asia/Bangkok", () => {
     const r = evaluateAvailability(context(), request({ slots: ["SLOT_1", "SLOT_4"] }));
     expect(r.slots[0].startAt.toISOString()).toBe("2026-09-28T01:40:00.000Z"); // 08:40 ICT
     expect(r.slots[1].endAt.toISOString()).toBe("2026-09-28T12:20:00.000Z"); // 19:20 ICT
+  });
+});
+
+describe("evaluateDayAvailability: each slot on its own (Room Finder, no slot selected)", () => {
+  const day = { date: "2026-09-28", partySize: 4 };
+
+  it("a room busy in one slot still has its other slots available", () => {
+    const out = evaluateDayAvailability(context({ classes: [klass()] }), day, ALL_SLOTS);
+    expect(out.available).toBe(true);
+    expect(out.availableSlots.map((s) => s.slot)).toEqual(["SLOT_2", "SLOT_3", "SLOT_4"]);
+    // The same context as ONE multi-slot request would be unavailable - the whole point.
+    expect(evaluateAvailability(context({ classes: [klass()] }), request({ slots: ALL_SLOTS })).available).toBe(false);
+  });
+
+  it("keeps each slot's own remaining capacity", () => {
+    const out = evaluateDayAvailability(
+      context({ approvedPartySizeBySlot: { SLOT_1: 3, SLOT_3: 8 } }),
+      day,
+      ALL_SLOTS
+    );
+    expect(out.availableSlots).toEqual([
+      { slot: "SLOT_1", remainingCapacity: 12 },
+      { slot: "SLOT_2", remainingCapacity: 15 },
+      { slot: "SLOT_3", remainingCapacity: 7 },
+      { slot: "SLOT_4", remainingCapacity: 15 },
+    ]);
+  });
+
+  it("a slot that cannot fit the party is left out, with its reason kept", () => {
+    const out = evaluateDayAvailability(context({ approvedPartySizeBySlot: { SLOT_2: 13 } }), day, ALL_SLOTS);
+    expect(out.availableSlots.map((s) => s.slot)).toEqual(["SLOT_1", "SLOT_3", "SLOT_4"]);
+    expect(out.slots.find((s) => s.requestedSlots[0] === "SLOT_2")?.status).toBe("FULL");
+  });
+
+  it("windows, closures and PENDING follow Feature 3 exactly, per slot", () => {
+    const out = evaluateDayAvailability(
+      context({
+        windowSlots: ["SLOT_1", "SLOT_2", "SLOT_3"],
+        closures: [closure({ startDate: "2026-09-28", endDate: "2026-09-28", slots: ["SLOT_2"] })],
+        pendingPartySizeBySlot: { SLOT_3: 15 },
+      }),
+      day,
+      ALL_SLOTS
+    );
+    expect(out.slots.map((s) => s.status)).toEqual(["AVAILABLE", "CLOSED", "AVAILABLE", "OUTSIDE_WINDOW"]);
+    expect(out.availableSlots).toEqual([
+      { slot: "SLOT_1", remainingCapacity: 15 },
+      { slot: "SLOT_3", remainingCapacity: 15 },
+    ]);
+  });
+
+  it("no slot available -> not available, every reason reported", () => {
+    const out = evaluateDayAvailability(context({ windowSlots: [] }), day, ALL_SLOTS);
+    expect(out).toMatchObject({ available: false, availableSlots: [] });
+    expect(out.slots.every((s) => s.status === "OUTSIDE_WINDOW")).toBe(true);
+  });
+
+  it("only evaluates the slots it is given (e.g. today's remaining slots)", () => {
+    const out = evaluateDayAvailability(context(), day, ["SLOT_4", "SLOT_3"]);
+    expect(out.slots.map((s) => s.requestedSlots[0])).toEqual(["SLOT_3", "SLOT_4"]);
+  });
+
+  it("room-level blockers leave nothing available", () => {
+    const out = evaluateDayAvailability(context({ room: { ...LAB_01, bookingEnabled: false } }), day, ALL_SLOTS);
+    expect(out.available).toBe(false);
+    expect(out.slots.every((s) => s.status === "BOOKING_DISABLED")).toBe(true);
   });
 });

@@ -1,4 +1,5 @@
-import { addAcademicDays, isValidAcademicDate } from "@/lib/academic-slots";
+import { addAcademicDays, isValidAcademicDate, resolveSlotRange } from "@/lib/academic-slots";
+import type { AcademicSlot } from "@/lib/types";
 
 // Booking policy shared by Room Finder (Feature 5) and booking creation (Feature 7).
 // Pure: callers pass "today" as an Asia/Bangkok calendar date.
@@ -17,4 +18,18 @@ export function isWithinBookingHorizon(date: string, today: string): boolean {
   if (!strict(date) || !strict(today)) return false;
   // Zero-padded ISO dates compare correctly as strings.
   return date >= today && date <= getBookingHorizonEnd(today);
+}
+
+/**
+ * A slot already in progress can still be booked while at least this many minutes
+ * remain (Feature 7, policy C). This is a time rule ONLY: the room must still be
+ * AVAILABLE for that slot under Feature 3 (no class in session, window, closure,
+ * capacity) - that check is separate and always runs.
+ */
+export const BOOKING_MIN_MINUTES_BEFORE_SLOT_END = 15;
+
+/** Not started yet, or running with at least BOOKING_MIN_MINUTES_BEFORE_SLOT_END left. */
+export function isSlotStillBookable(date: string, slot: AcademicSlot, now: Date): boolean {
+  const { endAt } = resolveSlotRange(date, slot);
+  return endAt.getTime() - now.getTime() >= BOOKING_MIN_MINUTES_BEFORE_SLOT_END * 60_000;
 }

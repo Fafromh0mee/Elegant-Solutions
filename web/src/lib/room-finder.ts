@@ -8,9 +8,14 @@ import {
   isContiguousSlotSelection,
   isValidAcademicDate,
 } from "@/lib/academic-slots";
-import { isWithinBookingHorizon } from "@/lib/booking-rules";
+import { isSlotStillBookable, isWithinBookingHorizon } from "@/lib/booking-rules";
 import { ROOM_CAPACITY_MAX } from "@/lib/room-config";
-import type { AvailabilityStatus, RoomAvailabilityResult } from "@/lib/availability";
+import {
+  ROOM_SEARCH_MAX_LIMIT,
+  type AvailabilityStatus,
+  type RoomAvailabilityResult,
+  type RoomDayAvailabilityResult,
+} from "@/lib/availability";
 import { ROOM_CAPABILITY_VALUES } from "@/lib/types";
 import type { AcademicSlot, RoomCapability } from "@/lib/types";
 import {
@@ -24,12 +29,33 @@ import {
 // every status comes from the Feature 3 engine unchanged.
 
 export const ROOM_FINDER_PATH = "/rooms";
-/** Rooms returned per search (available rooms first). */
+/** Rooms returned per /rooms search (available rooms first). */
 export const ROOM_FINDER_RESULT_LIMIT = 50;
+/** Dashboard: best-fitting rooms shown first. */
+export const ROOM_FINDER_SHORTLIST = 6;
+/** Dashboard: rooms added per "ดูทั้งหมด" / "แสดงเพิ่ม". */
+export const ROOM_FINDER_BATCH = 20;
+/** Most rooms one search returns - Feature 3's own ceiling. */
+export const ROOM_FINDER_MAX_RESULTS = ROOM_SEARCH_MAX_LIMIT;
+
+/** A result limit from the client: an integer in [1, ROOM_FINDER_MAX_RESULTS], else the default. */
+export function parseResultLimit(value: unknown, fallback = ROOM_FINDER_RESULT_LIMIT): number {
+  return typeof value === "number" && Number.isInteger(value) && value >= 1 && value <= ROOM_FINDER_MAX_RESULTS
+    ? value
+    : fallback;
+}
+
+/** The limit after "ดูทั้งหมด" / "แสดงเพิ่ม": 6 -> 20 -> 40 … capped at the maximum. */
+export function nextResultLimit(current: number): number {
+  return current < ROOM_FINDER_BATCH
+    ? ROOM_FINDER_BATCH
+    : Math.min(current + ROOM_FINDER_BATCH, ROOM_FINDER_MAX_RESULTS);
+}
 
 export interface RoomFinderQuery {
   date: string; // "YYYY-MM-DD", Asia/Bangkok
-  slots: AcademicSlot[]; // contiguous, in slot order
+  /** Contiguous, in slot order. Empty = no slot chosen: rooms with at least one available slot that day. */
+  slots: AcademicSlot[];
   partySize: number;
   capability: RoomCapability | null; // null = ทุกประเภท
   building: string | null;
@@ -41,6 +67,7 @@ export type RoomFinderError =
   | "INVALID_DATE"
   | "DATE_OUT_OF_RANGE"
   | "NO_SLOTS"
+  | "NO_SLOTS_LEFT_TODAY"
   | "INVALID_SLOT"
   | "SLOTS_NOT_CONTIGUOUS"
   | "SLOT_ENDED"
@@ -64,7 +91,8 @@ export interface RoomFinderInput {
   floor?: unknown;
 }
 
-function parsePartySize(value: unknown): number | null {
+/** A positive whole number of people up to ROOM_CAPACITY_MAX, from a number or digit string; else null. */
+export function parsePartySize(value: unknown): number | null {
   const number =
     typeof value === "number" ? value : typeof value === "string" && /^\d{1,6}$/.test(value) ? Number(value) : NaN;
   return Number.isInteger(number) && number >= 1 && number <= ROOM_CAPACITY_MAX ? number : null;
@@ -79,6 +107,13 @@ function parseFloor(value: unknown): number | null | undefined {
 
 function sortSlots(slots: AcademicSlot[]): AcademicSlot[] {
   return [...slots].sort((a, b) => getSlotDefinition(a).order - getSlotDefinition(b).order);
+}
+
+/** Slots a no-slot search considers: all of them, or - today - those not yet ended. */
+export function openSlotsOn(date: string, clock: RoomFinderClock): AcademicSlot[] {
+  return date === clock.today
+    ? ACADEMIC_SLOT_VALUES.filter((slot) => !hasSlotEnded(date, slot, clock.now))
+    : [...ACADEMIC_SLOT_VALUES];
 }
 
 /**
@@ -99,14 +134,21 @@ export function validateRoomFinderQuery(input: RoomFinderInput, clock: RoomFinde
   const date = input.date;
   if (!isWithinBookingHorizon(date, clock.today)) return { ok: false, error: "DATE_OUT_OF_RANGE" };
 
-  if (!Array.isArray(input.slots) || input.slots.length === 0) return { ok: false, error: "NO_SLOTS" };
-  if (!input.slots.every((slot) => typeof slot === "string" && isAcademicSlot(slot))) {
+  // No slot is allowed: it asks which slots are free that day (see openSlotsOn).
+  const rawSlots = input.slots === undefined ? [] : input.slots;
+  if (!Array.isArray(rawSlots)) return { ok: false, error: "INVALID_SLOT" };
+  if (!rawSlots.every((slot) => typeof slot === "string" && isAcademicSlot(slot))) {
     return { ok: false, error: "INVALID_SLOT" };
   }
-  if (!isContiguousSlotSelection(input.slots as string[])) return { ok: false, error: "SLOTS_NOT_CONTIGUOUS" };
-  const slots = sortSlots(input.slots as AcademicSlot[]);
+  if (rawSlots.length > 0 && !isContiguousSlotSelection(rawSlots as string[])) {
+    return { ok: false, error: "SLOTS_NOT_CONTIGUOUS" };
+  }
+  const slots = sortSlots(rawSlots as AcademicSlot[]);
   if (date === clock.today && slots.some((slot) => hasSlotEnded(date, slot, clock.now))) {
     return { ok: false, error: "SLOT_ENDED" };
+  }
+  if (slots.length === 0 && openSlotsOn(date, clock).length === 0) {
+    return { ok: false, error: "NO_SLOTS_LEFT_TODAY" };
   }
 
   let capability: RoomCapability | null = null;
@@ -145,10 +187,32 @@ export type RoomFinderSearchState =
       available: RoomAvailabilityResult[];
       unavailable: RoomAvailabilityResult[];
       statusCounts: Partial<Record<AvailabilityStatus, number>>;
+      /** Every AVAILABLE room matching the query (counted before the limit). */
+      totalAvailable: number;
+      /** The result limit this search ran with. */
+      limit: number;
       /** More available rooms exist than are shown. */
       availableTruncated: boolean;
       /** Proven: no active, bookable, configured room of the requested capability exists at all. */
       capabilityHasNoRooms: boolean;
+      /** Requested slots that can no longer be booked at search time (running, < 15 min left). */
+      bookingClosedSlots: AcademicSlot[];
+    }
+  | {
+      /** No slot chosen: rooms with at least one AVAILABLE slot on the date, per-slot detail kept. */
+      kind: "DAY";
+      query: RoomFinderQuery;
+      /** The slots evaluated (today: those not yet ended). */
+      consideredSlots: AcademicSlot[];
+      available: RoomDayAvailabilityResult[];
+      unavailable: RoomDayAvailabilityResult[];
+      totalAvailable: number;
+      totalUnavailable: number;
+      limit: number;
+      availableTruncated: boolean;
+      capabilityHasNoRooms: boolean;
+      /** Considered slots that can no longer be booked at search time (running, < 15 min left). */
+      bookingClosedSlots: AcademicSlot[];
     };
 
 /** Everything the finder form needs before the first search. Server clock, Asia/Bangkok. */
@@ -157,6 +221,17 @@ export interface RoomFinderSetup {
   maxDate: string;
   now: string; // ISO instant, for disabling slots that have ended
   locations: Array<{ building: string; floor: number | null }>;
+  /** The viewer may create bookings (STUDENT, approved GUEST): result cards link to booking review. */
+  canBook: boolean;
+}
+
+/**
+ * Slots whose booking has closed at `now` although they may still be searched:
+ * the running slot once fewer than BOOKING_MIN_MINUTES_BEFORE_SLOT_END remain.
+ * Display only - booking creation enforces the same rule on the server.
+ */
+export function bookingClosedSlotsOn(date: string, slots: readonly AcademicSlot[], now: Date): AcademicSlot[] {
+  return slots.filter((slot) => !isSlotStillBookable(date, slot, now));
 }
 
 /** A fresh form: today, no slot chosen, optional filters empty. */
@@ -287,6 +362,18 @@ export function compareFinderResults(a: RoomAvailabilityResult, b: RoomAvailabil
   return a.room.roomCode < b.room.roomCode ? -1 : a.room.roomCode > b.room.roomCode ? 1 : 0;
 }
 
+/**
+ * No slot chosen: rooms with a free slot first; then the most free slots (more choice),
+ * then the smaller room, then roomCode. Deterministic - no scoring. One remaining
+ * capacity cannot rank a room here, because each free slot has its own.
+ */
+export function compareDayResults(a: RoomDayAvailabilityResult, b: RoomDayAvailabilityResult): number {
+  if (a.available !== b.available) return a.available ? -1 : 1;
+  if (a.availableSlots.length !== b.availableSlots.length) return b.availableSlots.length - a.availableSlots.length;
+  if (a.room.capacity !== b.room.capacity) return a.room.capacity - b.room.capacity;
+  return a.room.roomCode < b.room.roomCode ? -1 : a.room.roomCode > b.room.roomCode ? 1 : 0;
+}
+
 // --- Result view data -------------------------------------------------------
 
 export interface FinderCard {
@@ -325,7 +412,8 @@ export function toFinderCard(result: RoomAvailabilityResult): FinderCard {
     locationLabel: getLocationLabel(result.room.building, result.room.floor),
     capacityLabel: `รองรับ ${result.room.capacity} คน`,
     remainingLabel: showRemaining
-      ? `เหลือ ${result.remainingCapacity} ที่${multiSlot ? " ตลอดช่วงที่เลือก" : ""}`
+      ? // Remaining APPROVED-booking capacity - worded so it is not read as a live head-count.
+        `จองเพิ่มได้อีก ${result.remainingCapacity} ที่${multiSlot ? " ตลอดช่วงที่เลือก" : ""}`
       : null,
     available: result.available,
     statusLabel: getAvailabilityStatusLabel(result.status),
@@ -337,6 +425,53 @@ export function toFinderCard(result: RoomAvailabilityResult): FinderCard {
             .filter((slot) => !slot.available)
             .map((slot) => `${getSlotShortLabel(slot.slot)}: ${getAvailabilityStatusLabel(slot.status)}`)
         : [],
+  };
+}
+
+export interface DayCard {
+  roomId: string;
+  roomCode: string;
+  name: string;
+  capabilityLabels: string[];
+  locationLabel: string | null;
+  capacityLabel: string;
+  available: boolean;
+  /** "ว่าง 3 คาบ" / "ไม่มีคาบว่าง" */
+  statusLabel: string;
+  approvalLabel: string;
+  requiresApproval: boolean;
+  /** One chip per AVAILABLE slot with THAT slot's reservable capacity - never one flattened number. */
+  slotChips: Array<{ slot: AcademicSlot; label: string; time: string; remainingLabel: string }>;
+  /** Why each considered slot is not available (shown for rooms with no free slot). */
+  slotIssues: string[];
+}
+
+export function toDayCard(result: RoomDayAvailabilityResult): DayCard {
+  return {
+    roomId: result.room.id,
+    roomCode: result.room.roomCode,
+    name: result.room.name,
+    capabilityLabels: result.room.capabilities.map(getRoomCapabilityLabel),
+    locationLabel: getLocationLabel(result.room.building, result.room.floor),
+    capacityLabel: `รองรับ ${result.room.capacity} คน`,
+    available: result.available,
+    statusLabel: result.available ? `ว่าง ${result.availableSlots.length} คาบ` : "ไม่มีคาบว่าง",
+    approvalLabel: getApprovalPolicyLabel(result.room.approvalPolicy),
+    requiresApproval: result.requiresApproval,
+    slotChips: result.availableSlots.map(({ slot, remainingCapacity }) => {
+      const definition = getSlotDefinition(slot);
+      return {
+        slot,
+        label: definition.label,
+        time: `${definition.startTime}–${definition.endTime}`,
+        remainingLabel: `จองเพิ่มได้อีก ${remainingCapacity}`,
+      };
+    }),
+    slotIssues: result.available
+      ? []
+      : result.slots.map(
+          (slot) => `${getSlotShortLabel(slot.requestedSlots[0])}: ${getAvailabilityStatusLabel(slot.status)}`
+        ),
   };
 }
 
@@ -365,13 +500,20 @@ export function summarizeUnavailable(
 
 // --- Feature 7 hand-off -----------------------------------------------------
 
-/** What "จองห้อง" will carry into booking (Feature 7). Untrusted: Feature 7 re-validates and re-evaluates. */
+/**
+ * What "จองห้อง" carries into booking review. Untrusted: the review page and booking
+ * creation re-validate it and re-evaluate the room. requiredCapability, when present,
+ * is a real constraint re-checked at booking time. building/floor are search context
+ * only (for "แก้ไขการค้นหา") and never constrain the booking.
+ */
 export interface RoomBookingHandoff {
   roomId: string;
   date: string;
   slots: AcademicSlot[];
   partySize: number;
   requiredCapability?: RoomCapability;
+  building?: string;
+  floor?: number;
 }
 
 export function toBookingHandoff(roomId: string, query: RoomFinderQuery): RoomBookingHandoff {
@@ -381,16 +523,25 @@ export function toBookingHandoff(roomId: string, query: RoomFinderQuery): RoomBo
     slots: query.slots,
     partySize: query.partySize,
     ...(query.capability ? { requiredCapability: query.capability } : {}),
+    ...(query.building ? { building: query.building } : {}),
+    ...(query.floor !== null ? { floor: query.floor } : {}),
+  };
+}
+
+/** The finder search a hand-off came from, for "แก้ไขการค้นหา". */
+export function handoffSearchQuery(handoff: RoomBookingHandoff): RoomFinderQuery {
+  return {
+    date: handoff.date,
+    slots: handoff.slots,
+    partySize: handoff.partySize,
+    capability: handoff.requiredCapability ?? null,
+    building: handoff.building ?? null,
+    floor: handoff.floor ?? null,
   };
 }
 
 export function buildBookingHandoffHref(handoff: RoomBookingHandoff): string {
-  const params = new URLSearchParams();
-  params.set("date", handoff.date);
-  params.set("slots", handoff.slots.join(","));
-  params.set("partySize", String(handoff.partySize));
-  if (handoff.requiredCapability) params.set("capability", handoff.requiredCapability);
-  return `${ROOM_FINDER_PATH}/${encodeURIComponent(handoff.roomId)}/book?${params}`;
+  return `${ROOM_FINDER_PATH}/${encodeURIComponent(handoff.roomId)}/book?${queryParams(handoffSearchQuery(handoff))}`;
 }
 
 export function parseBookingHandoff(
@@ -403,12 +554,16 @@ export function parseBookingHandoff(
   const outcome = validateRoomFinderQuery(
     {
       date: read("date"),
-      slots: read("slots")?.split(",") ?? [],
+      slots: read("slots") ? (read("slots") as string).split(",") : [],
       partySize: read("partySize"),
       capability: read("capability"),
+      building: read("building"),
+      floor: read("floor"),
     },
     clock
   );
   if (!outcome.ok) return outcome;
+  // A booking is always for specific slots; "no slot" is a search mode only.
+  if (outcome.query.slots.length === 0) return { ok: false, error: "NO_SLOTS" };
   return { ok: true, handoff: toBookingHandoff(roomId, outcome.query) };
 }

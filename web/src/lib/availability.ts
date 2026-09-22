@@ -518,3 +518,47 @@ export function evaluateAvailability(
     configWarnings: [...warnings],
   };
 }
+
+// --- Per-slot evaluation for a whole day (Room Finder, no slot selected) ----
+
+/** One room on one date, each considered slot evaluated ON ITS OWN. */
+export interface RoomDayAvailabilityResult {
+  room: AvailabilityRoom;
+  date: string;
+  partySize: number;
+  /** At least one considered slot is AVAILABLE. Never "free all day". */
+  available: boolean;
+  /** The considered slots that are AVAILABLE, each with its own remaining capacity. */
+  availableSlots: Array<{ slot: AcademicSlot; remainingCapacity: number }>;
+  /** The single-slot evaluation for every considered slot, in slot order - reasons included. */
+  slots: RoomAvailabilityResult[];
+  requiresApproval: boolean;
+}
+
+/**
+ * Evaluates each slot separately with evaluateAvailability - NOT one multi-slot
+ * request, which would demand availability across every slot at once. The context
+ * must have been loaded for (at least) all of `slots`.
+ */
+export function evaluateDayAvailability(
+  context: RoomAvailabilityContext,
+  request: Omit<AvailabilityRequest, "slots">,
+  slots: readonly AcademicSlot[]
+): RoomDayAvailabilityResult {
+  const perSlot = [...slots]
+    .sort((a, b) => getSlotDefinition(a).order - getSlotDefinition(b).order)
+    .map((slot) => evaluateAvailability(context, { ...request, slots: [slot] }));
+  const availableSlots = perSlot
+    .filter((result) => result.available)
+    .map((result) => ({ slot: result.requestedSlots[0], remainingCapacity: result.remainingCapacity }));
+
+  return {
+    room: context.room,
+    date: request.date,
+    partySize: request.partySize,
+    available: availableSlots.length > 0,
+    availableSlots,
+    slots: perSlot,
+    requiresApproval: context.room.approvalPolicy === "MANUAL",
+  };
+}

@@ -1,29 +1,30 @@
 "use server";
 
 import { auth } from "@/lib/auth";
-import { canUseRoomFinder } from "@/lib/permissions";
-import { getRoomFinderSetup, searchRoomFinder } from "@/lib/room-finder-search";
-import type { RoomFinderInput, RoomFinderSearchState, RoomFinderSetup } from "@/lib/room-finder";
+import { getRoomAudience } from "@/lib/permissions";
+import { searchRoomFinder } from "@/lib/room-finder-search";
+import {
+  parseResultLimit,
+  type RoomFinderInput,
+  type RoomFinderSearchState,
+} from "@/lib/room-finder";
 
-// Client entry points for the Room Finder panel on the student dashboard.
+// Client entry point for the Room Finder panel on the student dashboard.
 // Auth + role only; validation and search live in @/lib/room-finder-search,
 // availability in the Feature 3 engine. Input is untrusted and re-validated.
+// The room set (all bookable rooms, or guest-eligible only) comes from the session,
+// never from the client.
 
-async function allowed(): Promise<boolean> {
+export async function searchRoomFinderAction(input: RoomFinderInput, limit?: unknown): Promise<RoomFinderSearchState> {
   const session = await auth();
-  return !!session && canUseRoomFinder(session.user.role);
-}
-
-export async function getRoomFinderSetupAction(): Promise<
-  ({ kind: "READY" } & RoomFinderSetup) | { kind: "NOT_ALLOWED" }
-> {
-  if (!(await allowed())) return { kind: "NOT_ALLOWED" };
-  return { kind: "READY", ...(await getRoomFinderSetup(new Date())) };
-}
-
-export async function searchRoomFinderAction(input: RoomFinderInput): Promise<RoomFinderSearchState> {
-  if (!(await allowed())) return { kind: "NOT_ALLOWED" };
+  const audience = session ? getRoomAudience(session.user.role, session.user.status) : null;
+  if (audience === null) return { kind: "NOT_ALLOWED" };
   // Only the known fields are forwarded; anything else in the payload is ignored.
   const { date, slots, partySize, capability, building, floor } = input ?? {};
-  return searchRoomFinder({ date, slots, partySize, capability, building, floor }, new Date());
+  return searchRoomFinder(
+    { date, slots, partySize, capability, building, floor },
+    new Date(),
+    parseResultLimit(limit),
+    audience
+  );
 }

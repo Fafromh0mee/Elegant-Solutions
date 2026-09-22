@@ -14,7 +14,7 @@ export default async function RoomFinderPage({
 }) {
   const session = await auth();
   const state = await loadRoomFinder({
-    role: session?.user.role ?? null,
+    viewer: session ? { role: session.user.role, status: session.user.status } : null,
     params: await searchParams,
     now: new Date(),
   });
@@ -26,7 +26,7 @@ export default async function RoomFinderPage({
       <div className="card mx-auto max-w-xl text-center">
         <h1 className="text-lg font-semibold text-gray-900">ค้นหาห้อง</h1>
         <p className="mt-2 text-sm text-gray-600">
-          การค้นหาและจองห้องเปิดให้เฉพาะนักศึกษาและบุคลากรของมหาวิทยาลัย
+          การค้นหาและจองห้องจะเปิดให้ใช้หลังจากบัญชีของคุณได้รับการอนุมัติ
         </p>
         <Link href="/dashboard" className="btn-secondary mt-4 inline-flex">
           กลับหน้าภาพรวม
@@ -46,7 +46,13 @@ export default async function RoomFinderPage({
       <RoomFinderPanel
         key={JSON.stringify(state.form)}
         mode="url"
-        setup={{ today: state.today, maxDate: state.maxDate, now: state.now, locations: state.locations }}
+        setup={{
+          today: state.today,
+          maxDate: state.maxDate,
+          now: state.now,
+          locations: state.locations,
+          canBook: state.canBook,
+        }}
         initialForm={state.form}
         search={state.search}
       />

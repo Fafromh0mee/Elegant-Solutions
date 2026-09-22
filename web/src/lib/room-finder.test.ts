@@ -1,15 +1,21 @@
 import { describe, expect, it } from "vitest";
-import type { RoomAvailabilityResult, SlotAvailability } from "@/lib/availability";
+import type { RoomAvailabilityResult, RoomDayAvailabilityResult, SlotAvailability } from "@/lib/availability";
 import {
   buildBookingHandoffHref,
+  compareDayResults,
   compareFinderResults,
   emptyRoomFinderForm,
+  openSlotsOn,
+  toDayCard,
+  nextResultLimit,
+  parseResultLimit,
   getSlotRangeLabel,
   parseBookingHandoff,
   parseRoomFinderSearchParams,
   roomFinderHref,
   selectSlotRange,
   summarizeUnavailable,
+  handoffSearchQuery,
   toBookingHandoff,
   toFinderCard,
   validateRoomFinderQuery,
@@ -82,11 +88,14 @@ function result(patch: {
 }
 
 describe("1/2. who gets the finder", () => {
-  it("STUDENT, ADMIN and SUPER_ADMIN yes; GUEST no", () => {
-    expect(canUseRoomFinder("STUDENT")).toBe(true);
-    expect(canUseRoomFinder("ADMIN")).toBe(true);
-    expect(canUseRoomFinder("SUPER_ADMIN")).toBe(true);
-    expect(canUseRoomFinder("GUEST")).toBe(false);
+  it("STUDENT, ADMIN, SUPER_ADMIN and approved GUEST yes; pending or rejected GUEST no", () => {
+    expect(canUseRoomFinder("STUDENT", "APPROVED")).toBe(true);
+    expect(canUseRoomFinder("ADMIN", "APPROVED")).toBe(true);
+    expect(canUseRoomFinder("SUPER_ADMIN", "APPROVED")).toBe(true);
+    expect(canUseRoomFinder("GUEST", "APPROVED")).toBe(true);
+    expect(canUseRoomFinder("GUEST", "PENDING")).toBe(false);
+    expect(canUseRoomFinder("GUEST", "REJECTED")).toBe(false);
+    expect(canUseRoomFinder("GUEST", undefined)).toBe(false);
   });
 });
 
@@ -121,8 +130,6 @@ describe("6/16. slots", () => {
     expect(out.ok && out.query.slots).toEqual(["SLOT_2", "SLOT_3"]);
   });
   it.each([
-    [[], "NO_SLOTS"],
-    [undefined, "NO_SLOTS"],
     [["SLOT_9"], "INVALID_SLOT"],
     [["SLOT_1", "SLOT_3"], "SLOTS_NOT_CONTIGUOUS"],
     [["SLOT_2", "SLOT_2"], "SLOTS_NOT_CONTIGUOUS"],
@@ -264,7 +271,7 @@ describe("9-12. result cards", () => {
       capabilityLabels: ["ห้องปฏิบัติการ", "ห้องเรียน"],
       locationLabel: "อาคาร A4 · ชั้น 2",
       capacityLabel: "รองรับ 40 คน",
-      remainingLabel: "เหลือ 12 ที่",
+      remainingLabel: "จองเพิ่มได้อีก 12 ที่",
       available: true,
       statusLabel: "พร้อมใช้งาน",
       approvalLabel: "อนุมัติอัตโนมัติ",
@@ -282,7 +289,7 @@ describe("9-12. result cards", () => {
 
   it("multi-slot remaining capacity is for the whole run", () => {
     const card = toFinderCard(result({ code: "X", slots: ["SLOT_2", "SLOT_3"], remaining: 5 }));
-    expect(card.remainingLabel).toBe("เหลือ 5 ที่ ตลอดช่วงที่เลือก");
+    expect(card.remainingLabel).toBe("จองเพิ่มได้อีก 5 ที่ ตลอดช่วงที่เลือก");
   });
 
   it("an unavailable multi-slot room lists which slot failed and why", () => {
@@ -303,7 +310,7 @@ describe("9-12. result cards", () => {
   it("FULL keeps its remaining seats and never says anything but ห้องเต็ม", () => {
     const card = toFinderCard(result({ code: "X", available: false, status: "FULL", remaining: 3 }));
     expect(card.statusLabel).toBe("ห้องเต็ม");
-    expect(card.remainingLabel).toBe("เหลือ 3 ที่");
+    expect(card.remainingLabel).toBe("จองเพิ่มได้อีก 3 ที่");
   });
 
   it("location falls back gracefully", () => {
@@ -331,15 +338,24 @@ describe("Feature 7 hand-off", () => {
     floor: 4,
   };
 
-  it("carries only roomId, date, slots, partySize and capability", () => {
+  it("carries the booking intent plus building/floor as search context only", () => {
     expect(toBookingHandoff("room-1", query)).toEqual({
       roomId: "room-1",
       date: "2026-09-28",
       slots: ["SLOT_2", "SLOT_3"],
       partySize: 6,
       requiredCapability: "LAB",
+      building: "A4",
+      floor: 4,
     });
-    expect(toBookingHandoff("room-1", { ...query, capability: null })).not.toHaveProperty("requiredCapability");
+    const bare = toBookingHandoff("room-1", { ...query, capability: null, building: null, floor: null });
+    expect(bare).not.toHaveProperty("requiredCapability");
+    expect(bare).not.toHaveProperty("building");
+    expect(bare).not.toHaveProperty("floor");
+  });
+
+  it("แก้ไขการค้นหา: the hand-off maps back to the same finder search", () => {
+    expect(handoffSearchQuery(toBookingHandoff("room-1", query))).toEqual(query);
   });
 
   it("round-trips through the booking URL and is re-validated", () => {
@@ -367,7 +383,118 @@ describe("dashboard expansion", () => {
     });
   });
 
-  it("a fresh form is not a valid search until a slot is chosen", () => {
-    expect(errorOf({ ...emptyRoomFinderForm("2026-09-22", "6") })).toBe("NO_SLOTS");
+  it("a fresh form (no slot) is a valid search: which slots are free that day", () => {
+    const out = validateRoomFinderQuery(emptyRoomFinderForm("2026-09-22", "6"), clock);
+    expect(out.ok && out.query.slots).toEqual([]);
+  });
+});
+
+describe("capacity wording", () => {
+  it("says 'จองเพิ่มได้อีก' so the number is not read as a live head-count", () => {
+    expect(toFinderCard(result({ code: "X", remaining: 12 })).remainingLabel).toBe("จองเพิ่มได้อีก 12 ที่");
+  });
+});
+
+describe("shortlist and แสดงเพิ่ม limits", () => {
+  it("goes 6 -> 20 -> 40 … and stops at Feature 3's maximum of 200", () => {
+    expect(nextResultLimit(6)).toBe(20);
+    expect(nextResultLimit(20)).toBe(40);
+    expect(nextResultLimit(180)).toBe(200);
+    expect(nextResultLimit(200)).toBe(200);
+  });
+
+  it("accepts only integers from 1 to 200 from the client", () => {
+    expect(parseResultLimit(6)).toBe(6);
+    expect(parseResultLimit(200)).toBe(200);
+    for (const bad of [0, 201, -1, 1.5, "6", null, undefined]) expect(parseResultLimit(bad)).toBe(50);
+  });
+});
+
+describe("optional slot (search the whole day)", () => {
+  it("no slot is valid", () => {
+    for (const slots of [[], undefined]) {
+      const out = validateRoomFinderQuery({ ...valid, slots }, clock);
+      expect(out.ok && out.query.slots).toEqual([]);
+    }
+  });
+
+  it("considers every slot on other days, and only unfinished ones today", () => {
+    expect(openSlotsOn("2026-09-28", clock)).toEqual(["SLOT_1", "SLOT_2", "SLOT_3", "SLOT_4"]);
+    const afternoon = { today: "2026-09-22", now: new Date("2026-09-22T08:00:00Z") }; // 15:00 Bangkok
+    expect(openSlotsOn("2026-09-22", afternoon)).toEqual(["SLOT_3", "SLOT_4"]);
+  });
+
+  it("today after the last slot has nothing to search", () => {
+    const night = { today: "2026-09-22", now: new Date("2026-09-22T13:00:00Z") }; // 20:00 Bangkok
+    expect(errorOf({ ...valid, date: "2026-09-22", slots: [] }, night)).toBe("NO_SLOTS_LEFT_TODAY");
+    expect(errorOf({ ...valid, date: "2026-09-23", slots: [] }, night)).toBe("OK");
+  });
+
+  it("round-trips through the URL with an empty slots param", () => {
+    const query = { ...validQuery(), slots: [] };
+    expect(roomFinderHref(query)).toContain("slots=&");
+    const params = Object.fromEntries(new URL(roomFinderHref(query), "http://x").searchParams);
+    expect(parseRoomFinderSearchParams(params, clock).outcome).toEqual({ ok: true, query });
+  });
+
+  it("a booking hand-off still requires specific slots", () => {
+    expect(parseBookingHandoff("room-1", { date: "2026-09-28", slots: "", partySize: "6" }, clock)).toEqual({
+      ok: false,
+      error: "NO_SLOTS",
+    });
+  });
+});
+
+function validQuery() {
+  const out = validateRoomFinderQuery(valid, clock);
+  if (!out.ok) throw new Error(out.error);
+  return out.query;
+}
+
+function day(code: string, free: Array<[AcademicSlot, number]>, capacity = 40): RoomDayAvailabilityResult {
+  return {
+    room: { ...result({ code, capacity }).room },
+    date: "2026-09-28",
+    partySize: 4,
+    available: free.length > 0,
+    availableSlots: free.map(([slot, remainingCapacity]) => ({ slot, remainingCapacity })),
+    slots: free.length > 0 ? [] : [result({ code, available: false, status: "CLASS_IN_SESSION", slots: ["SLOT_1"] })],
+    requiresApproval: false,
+  };
+}
+
+describe("no-slot ordering and cards", () => {
+  it("rooms with a free slot first, then most free slots, then smaller room, then roomCode", () => {
+    const rooms = [
+      day("A-NONE", []),
+      day("B-ONE", [["SLOT_2", 10]], 20),
+      day("C-THREE-BIG", [["SLOT_1", 30], ["SLOT_2", 30], ["SLOT_3", 30]], 60),
+      day("D-THREE-SMALL", [["SLOT_1", 5], ["SLOT_3", 5], ["SLOT_4", 5]], 10),
+      day("E-ONE", [["SLOT_4", 3]], 20),
+    ];
+    expect([...rooms].sort(compareDayResults).map((r) => r.room.roomCode)).toEqual([
+      "D-THREE-SMALL",
+      "C-THREE-BIG",
+      "B-ONE",
+      "E-ONE",
+      "A-NONE",
+    ]);
+  });
+
+  it("one chip per free slot with that slot's own reservable capacity", () => {
+    const card = toDayCard(day("A1-101", [["SLOT_1", 12], ["SLOT_3", 7], ["SLOT_4", 20]]));
+    expect(card).toMatchObject({ statusLabel: "ว่าง 3 คาบ", capacityLabel: "รองรับ 40 คน", available: true });
+    expect(card.slotChips).toEqual([
+      { slot: "SLOT_1", label: "คาบ 1", time: "08:40–11:00", remainingLabel: "จองเพิ่มได้อีก 12" },
+      { slot: "SLOT_3", label: "คาบ 3", time: "14:30–16:50", remainingLabel: "จองเพิ่มได้อีก 7" },
+      { slot: "SLOT_4", label: "คาบ 4", time: "17:00–19:20", remainingLabel: "จองเพิ่มได้อีก 20" },
+    ]);
+    expect(card).not.toHaveProperty("remainingLabel"); // no single flattened number
+  });
+
+  it("a room with no free slot says so and lists each slot's reason", () => {
+    const card = toDayCard(day("X", []));
+    expect(card.statusLabel).toBe("ไม่มีคาบว่าง");
+    expect(card.slotIssues).toEqual(["คาบ 1: กำลังมีการเรียน"]);
   });
 });

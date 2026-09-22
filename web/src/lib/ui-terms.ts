@@ -276,6 +276,8 @@ export function getRoomFinderErrorMessage(code: string): string {
       return "ค้นหาได้ตั้งแต่วันนี้ถึงล่วงหน้า 30 วัน";
     case "NO_SLOTS":
       return "กรุณาเลือกคาบอย่างน้อย 1 คาบ";
+    case "NO_SLOTS_LEFT_TODAY":
+      return "วันนี้ไม่มีคาบเหลือแล้ว กรุณาเลือกวันอื่น";
     case "INVALID_SLOT":
       return "คาบที่เลือกไม่ถูกต้อง";
     case "SLOTS_NOT_CONTIGUOUS":
@@ -354,4 +356,13 @@ export function getBookingErrorMessage(code: string, detail?: number | string): 
     default:
       return getRoomFinderErrorMessage(code);
   }
+}
+
+/** 125 -> "2 ชม. 5 นาที", 35 -> "35 นาที", 120 -> "2 ชม." */
+export function formatMinutesThai(minutes: number): string {
+  const safe = Math.max(0, Math.round(minutes));
+  const hours = Math.floor(safe / 60);
+  const rest = safe % 60;
+  if (hours === 0) return `${rest} นาที`;
+  return rest === 0 ? `${hours} ชม.` : `${hours} ชม. ${rest} นาที`;
 }

@@ -118,7 +118,9 @@ export function RoomFinderForm({ initial, setup, searched, pending, onSearch }: 
       </div>
 
       <fieldset className="mt-4">
-        <legend className="label">คาบ</legend>
+        <legend className="label">
+          คาบ <span className="font-normal text-gray-400">(ไม่บังคับ)</span>
+        </legend>
         <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
           {ACADEMIC_SLOTS.map((definition) => {
             const selected = values.slots.includes(definition.slot);
@@ -158,7 +160,7 @@ export function RoomFinderForm({ initial, setup, searched, pending, onSearch }: 
         <p className="mt-2 text-xs text-gray-500">
           {values.slots.length > 0
             ? `เลือกแล้ว: ${getSlotRangeLabel(values.slots)}`
-            : "แตะคาบที่ต้องการ หากต้องการหลายคาบ ให้แตะคาบแรกและคาบสุดท้าย ระบบจะเลือกคาบที่อยู่ระหว่างให้"}
+            : "ไม่บังคับ: ถ้าไม่เลือกคาบ จะแสดงห้องที่มีคาบว่างในวันนั้นพร้อมคาบที่ว่าง · หลายคาบให้แตะคาบแรกและคาบสุดท้าย"}
         </p>
       </fieldset>
 

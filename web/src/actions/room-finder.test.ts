@@ -6,13 +6,14 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const authMock = vi.hoisted(() => vi.fn());
 const data = vi.hoisted(() => ({
   searchRoomAvailability: vi.fn(),
+  searchRoomDayAvailability: vi.fn(),
   countBookableRoomsWithCapability: vi.fn(),
   listBookableLocations: vi.fn(),
 }));
 vi.mock("@/lib/auth", () => ({ auth: authMock }));
 vi.mock("@/lib/availability-context", () => data);
 
-const { getRoomFinderSetupAction, searchRoomFinderAction } = await import("@/actions/room-finder");
+const { searchRoomFinderAction } = await import("@/actions/room-finder");
 
 // The action uses the real server clock, so dates are built relative to today.
 const { toAcademicDateString, addAcademicDays } = await import("@/lib/academic-slots");
@@ -27,6 +28,7 @@ beforeEach(() => {
     candidatesTruncated: false,
     statusCounts: {},
   });
+  data.searchRoomDayAvailability.mockReset();
   data.countBookableRoomsWithCapability.mockReset();
   data.listBookableLocations.mockReset().mockResolvedValue([{ building: "A4", floor: 2 }]);
 });
@@ -34,34 +36,37 @@ beforeEach(() => {
 describe("who may use the dashboard finder", () => {
   it.each([
     ["no session", null],
-    ["GUEST", { user: { id: "g", role: "GUEST" } }],
+    ["pending GUEST", { user: { id: "g", role: "GUEST", status: "PENDING" } }],
+    ["rejected GUEST", { user: { id: "g", role: "GUEST", status: "REJECTED" } }],
+    ["GUEST without status", { user: { id: "g", role: "GUEST" } }],
   ])("%s -> NOT_ALLOWED, nothing queried", async (_label, session) => {
     authMock.mockResolvedValue(session);
-    expect(await getRoomFinderSetupAction()).toEqual({ kind: "NOT_ALLOWED" });
     expect(await searchRoomFinderAction(valid)).toEqual({ kind: "NOT_ALLOWED" });
     expect(data.searchRoomAvailability).not.toHaveBeenCalled();
     expect(data.listBookableLocations).not.toHaveBeenCalled();
   });
 
-  it.each(["STUDENT", "ADMIN", "SUPER_ADMIN"])("%s gets setup and results", async (role) => {
-    authMock.mockResolvedValue({ user: { id: "u", role } });
-    const setup = await getRoomFinderSetupAction();
-    expect(setup).toMatchObject({
-      kind: "READY",
-      today: toAcademicDateString(new Date()),
-      locations: [{ building: "A4", floor: 2 }],
-    });
+  it.each(["STUDENT", "ADMIN", "SUPER_ADMIN"])("%s gets results over all bookable rooms", async (role) => {
+    authMock.mockResolvedValue({ user: { id: "u", role, status: "APPROVED" } });
     expect(await searchRoomFinderAction(valid)).toMatchObject({ kind: "DONE" });
+    expect(data.searchRoomAvailability.mock.calls[0][2]).toMatchObject({ audience: "ALL" });
+  });
+
+  it("approved GUEST gets results over guest-eligible rooms only (filtered server-side)", async () => {
+    authMock.mockResolvedValue({ user: { id: "g", role: "GUEST", status: "APPROVED" } });
+    expect(await searchRoomFinderAction(valid)).toMatchObject({ kind: "DONE" });
+    expect(data.searchRoomAvailability.mock.calls[0][2]).toMatchObject({ audience: "GUEST" });
+  });
+
+  it("a client cannot widen a GUEST search by sending an audience", async () => {
+    authMock.mockResolvedValue({ user: { id: "g", role: "GUEST", status: "APPROVED" } });
+    await searchRoomFinderAction({ ...valid, audience: "ALL" } as never);
+    expect(data.searchRoomAvailability.mock.calls[0][2]).toMatchObject({ audience: "GUEST" });
   });
 });
 
 describe("server-side validation of the inline search", () => {
-  beforeEach(() => authMock.mockResolvedValue({ user: { id: "u", role: "STUDENT" } }));
-
-  it("setup is not a search", async () => {
-    await getRoomFinderSetupAction();
-    expect(data.searchRoomAvailability).not.toHaveBeenCalled();
-  });
+  beforeEach(() => authMock.mockResolvedValue({ user: { id: "u", role: "STUDENT", status: "APPROVED" } }));
 
   it("forwards a valid query to Feature 3 unchanged", async () => {
     await searchRoomFinderAction({ ...valid, capability: "LAB" });
@@ -92,5 +97,34 @@ describe("server-side validation of the inline search", () => {
     const spy = vi.spyOn(console, "error").mockImplementation(() => {});
     expect(await searchRoomFinderAction(valid)).toEqual({ kind: "FAILED" });
     spy.mockRestore();
+  });
+});
+
+describe("result limit (shortlist / แสดงเพิ่ม)", () => {
+  beforeEach(() => authMock.mockResolvedValue({ user: { id: "u", role: "STUDENT", status: "APPROVED" } }));
+
+  it.each([
+    [6, 6],
+    [20, 20],
+    [200, 200],
+    [undefined, 50],
+    [0, 50],
+    [201, 50],
+    [5.5, 50],
+    ["20", 50],
+  ])("limit %j -> Feature 3 limit %i", async (limit, expected) => {
+    const out = await searchRoomFinderAction(valid, limit);
+    expect(data.searchRoomAvailability.mock.calls[0][1]).toMatchObject({ onlyAvailable: false, limit: expected });
+    expect(out).toMatchObject({ kind: "DONE", limit: expected });
+  });
+
+  it("reports the total available count, not just the rooms returned", async () => {
+    data.searchRoomAvailability.mockResolvedValue({
+      results: [],
+      truncated: true,
+      candidatesTruncated: false,
+      statusCounts: { AVAILABLE: 37, FULL: 2 },
+    });
+    expect(await searchRoomFinderAction(valid, 6)).toMatchObject({ totalAvailable: 37, availableTruncated: true });
   });
 });
