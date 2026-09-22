@@ -5,6 +5,7 @@ import { isAdminRole } from "@/lib/permissions";
 import { loadDashboardRoomFinder } from "@/lib/room-finder-search";
 import { loadDashboardBookings } from "@/lib/room-booking";
 import { autoCheckoutExpiredSessionsAction } from "@/actions/sessions";
+import { getOcrImportSetupAction } from "@/actions/ocr-timetable";
 
 export default async function DashboardPage() {
   const session = await auth();
@@ -32,5 +33,9 @@ export default async function DashboardPage() {
     return null;
   });
 
-  return <DashboardClient user={session.user} roomFinder={roomFinder} myBookings={myBookings} />;
+  const ocrSetup = session.user.role === "STUDENT"
+    ? await getOcrImportSetupAction()
+    : { error: "ไม่เปิดใช้การนำเข้า OCR สำหรับบัญชีนี้" };
+
+  return <DashboardClient user={session.user} roomFinder={roomFinder} myBookings={myBookings} ocrSetup={"error" in ocrSetup ? null : ocrSetup} />;
 }

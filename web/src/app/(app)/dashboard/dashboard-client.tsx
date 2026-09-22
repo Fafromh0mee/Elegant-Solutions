@@ -44,6 +44,7 @@ import { getMyClassSchedulesAction } from "@/actions/class-schedules";
 import { getRoleLabel } from "@/lib/ui-terms";
 import { RoomFinderEntry } from "@/components/room-finder-entry";
 import { MyBookingsSection } from "@/components/my-bookings-section";
+import { OcrTimetablePanel } from "@/components/ocr-timetable-panel";
 import { slotTimeToMinutes, SYSTEM_CLOSE_TIME, SYSTEM_OPEN_TIME } from "@/lib/academic-slots";
 import type { DashboardBooking } from "@/lib/room-booking-rules";
 import type { DashboardRoomFinder } from "@/lib/room-finder-search";
@@ -126,12 +127,17 @@ export function DashboardClient({
   user,
   roomFinder,
   myBookings,
+  ocrSetup,
 }: {
   user: AuthUser;
   /** null for users without Room Finder (a GUEST not yet approved). */
   roomFinder: DashboardRoomFinder | null;
   /** The user's own next PENDING/APPROVED bookings; null hides the section. */
   myBookings: DashboardBooking[] | null;
+  ocrSetup: {
+    activeSemester: string | null;
+    rooms: Array<{ id: string; roomCode: string; name: string }>;
+  } | null;
 }) {
   const [minDateTime] = useState(
     () => new Date(Date.now() + 60_000).toISOString().slice(0, 16),
@@ -814,6 +820,12 @@ export function DashboardClient({
               </div>
             </>
           )}
+        </div>
+      )}
+
+      {user.role === "STUDENT" && ocrSetup && (
+        <div className="mb-8">
+          <OcrTimetablePanel setup={ocrSetup} authenticatedName={user.name} />
         </div>
       )}
 
