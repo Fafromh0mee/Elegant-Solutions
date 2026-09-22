@@ -197,7 +197,7 @@ describe("15. URL state", () => {
 
   it("builds the documented URL", () => {
     expect(roomFinderHref(query)).toBe(
-      "/rooms?date=2026-09-28&slots=SLOT_2%2CSLOT_3&partySize=6&capability=LAB&building=A4&floor=4"
+      "/dashboard/rooms?date=2026-09-28&slots=SLOT_2%2CSLOT_3&partySize=6&capability=LAB&building=A4&floor=4"
     );
   });
 
@@ -210,7 +210,7 @@ describe("15. URL state", () => {
 
   it("omits optional filters when unset", () => {
     expect(roomFinderHref({ ...query, capability: null, building: null, floor: null })).toBe(
-      "/rooms?date=2026-09-28&slots=SLOT_2%2CSLOT_3&partySize=6"
+      "/dashboard/rooms?date=2026-09-28&slots=SLOT_2%2CSLOT_3&partySize=6"
     );
   });
 
@@ -361,7 +361,7 @@ describe("Feature 7 hand-off", () => {
   it("round-trips through the booking URL and is re-validated", () => {
     const handoff = toBookingHandoff("room-1", query);
     const url = new URL(buildBookingHandoffHref(handoff), "http://x");
-    expect(url.pathname).toBe("/rooms/room-1/book");
+    expect(url.pathname).toBe("/dashboard/rooms/room-1/book");
     expect(parseBookingHandoff("room-1", Object.fromEntries(url.searchParams), clock)).toEqual({ ok: true, handoff });
     expect(parseBookingHandoff("room-1", { date: "2026-09-28", slots: "SLOT_1,SLOT_3", partySize: "6" }, clock)).toEqual({
       ok: false,

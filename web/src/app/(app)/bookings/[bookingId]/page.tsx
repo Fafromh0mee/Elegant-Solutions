@@ -68,7 +68,7 @@ export default async function BookingResultPage({ params }: { params: Promise<{ 
           <Link href="/dashboard" className="btn-primary">
             กลับหน้าภาพรวม
           </Link>
-          <Link href="/rooms" className="btn-secondary">
+          <Link href="/dashboard/rooms" className="btn-secondary">
             ค้นหาห้องอื่น
           </Link>
         </div>

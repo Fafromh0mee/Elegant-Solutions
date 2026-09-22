@@ -28,8 +28,8 @@ import {
 // result ordering and card view data. Availability itself is never decided here:
 // every status comes from the Feature 3 engine unchanged.
 
-export const ROOM_FINDER_PATH = "/rooms";
-/** Rooms returned per /rooms search (available rooms first). */
+export const ROOM_FINDER_PATH = "/dashboard/rooms";
+/** Rooms returned per Room Finder search (available rooms first). */
 export const ROOM_FINDER_RESULT_LIMIT = 50;
 /** Dashboard: best-fitting rooms shown first. */
 export const ROOM_FINDER_SHORTLIST = 6;

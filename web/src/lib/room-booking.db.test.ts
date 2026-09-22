@@ -772,7 +772,7 @@ describe("review and result pages", () => {
     if (review.kind !== "READY") return;
     // แก้ไขการค้นหา goes back to the same finder search.
     const back = new URL(review.backHref, "http://x");
-    expect(back.pathname).toBe("/rooms");
+    expect(back.pathname).toBe("/dashboard/rooms");
     expect(Object.fromEntries(back.searchParams)).toMatchObject({ slots: "SLOT_2,SLOT_3", partySize: "4", building: RUN });
   });
 
