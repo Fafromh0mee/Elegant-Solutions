@@ -609,22 +609,27 @@ export default function GatePage({
 }
 
 function GateClock() {
-  const [time, setTime] = useState(new Date());
+  const [time, setTime] = useState<Date | null>(null);
 
   useEffect(() => {
+    const initialUpdate = setTimeout(() => setTime(new Date()), 0);
     const interval = setInterval(() => setTime(new Date()), 1000);
-    return () => clearInterval(interval);
+    return () => {
+      clearTimeout(initialUpdate);
+      clearInterval(interval);
+    };
   }, []);
 
   return (
     <span>
-      {time.toLocaleDateString("th-TH", {
-        weekday: "long",
-        year: "numeric",
-        month: "long",
-        day: "numeric",
-      })}{" "}
-      {time.toLocaleTimeString("th-TH")}
+      {time
+        ? `${time.toLocaleDateString("th-TH", {
+            weekday: "long",
+            year: "numeric",
+            month: "long",
+            day: "numeric",
+          })} ${time.toLocaleTimeString("th-TH")}`
+        : null}
     </span>
   );
 }

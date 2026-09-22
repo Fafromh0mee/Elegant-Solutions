@@ -4,7 +4,7 @@ const authMock = vi.hoisted(() => vi.fn());
 const activeSemesterMock = vi.hoisted(() => vi.fn());
 const prisma = vi.hoisted(() => ({
   room: { findMany: vi.fn() },
-  classSchedule: { findMany: vi.fn(), createMany: vi.fn() },
+  classSchedule: { findMany: vi.fn(), findFirst: vi.fn(), createMany: vi.fn() },
 }));
 
 vi.mock("@/lib/auth", () => ({ auth: authMock }));
@@ -40,6 +40,7 @@ beforeEach(() => {
   activeSemesterMock.mockReset().mockResolvedValue("2/2026");
   prisma.room.findMany.mockReset().mockResolvedValue([{ id: "room-1", roomCode: "A101", name: "A101" }]);
   prisma.classSchedule.findMany.mockReset().mockResolvedValue([]);
+  prisma.classSchedule.findFirst.mockReset().mockResolvedValue(null);
   prisma.classSchedule.createMany.mockReset().mockResolvedValue({ count: 1 });
 });
 
@@ -57,7 +58,37 @@ describe("student OCR setup authorization", () => {
 
   it("allows only an approved student and returns active semester plus rooms", async () => {
     authMock.mockResolvedValue({ user: { id: "student-1", name: "Alice", role: "STUDENT", status: "APPROVED" } });
-    await expect(getOcrImportSetupAction()).resolves.toMatchObject({ activeSemester: "2/2026", rooms: [{ roomCode: "A101" }] });
+    await expect(getOcrImportSetupAction()).resolves.toMatchObject({
+      activeSemester: "2/2026",
+      rooms: [{ roomCode: "A101" }],
+      hasCurrentSemesterSchedule: false,
+    });
+  });
+
+  it.each([
+    ["no current-semester schedule", null, false],
+    ["current-semester schedule", { id: "schedule-current" }, true],
+  ])("reports whether the student has a current-semester schedule: %s", async (_label, schedule, expected) => {
+    authMock.mockResolvedValue({ user: { id: "student-1", name: "Alice", role: "STUDENT", status: "APPROVED" } });
+    prisma.classSchedule.findFirst.mockResolvedValue(schedule);
+
+    await expect(getOcrImportSetupAction()).resolves.toMatchObject({ hasCurrentSemesterSchedule: expected });
+    expect(prisma.classSchedule.findFirst).toHaveBeenCalledWith({
+      where: { userId: "student-1", semester: "2/2026" },
+      select: { id: true },
+    });
+  });
+
+  it("does not count a schedule from an old semester", async () => {
+    authMock.mockResolvedValue({ user: { id: "student-1", name: "Alice", role: "STUDENT", status: "APPROVED" } });
+    prisma.classSchedule.findFirst.mockImplementation(async ({ where }: { where: { semester: string } }) =>
+      where.semester === "1/2026" ? { id: "schedule-old" } : null,
+    );
+
+    await expect(getOcrImportSetupAction()).resolves.toMatchObject({ hasCurrentSemesterSchedule: false });
+    expect(prisma.classSchedule.findFirst).toHaveBeenCalledWith(expect.objectContaining({
+      where: { userId: "student-1", semester: "2/2026" },
+    }));
   });
 });
 

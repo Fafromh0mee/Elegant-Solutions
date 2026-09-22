@@ -46,20 +46,20 @@ export function Navbar() {
               <path
                 d="M38.4946 28.6398V35.3064"
                 stroke="#0041C9"
-                stroke-width="5"
-                stroke-linecap="round"
+                strokeWidth="5"
+                strokeLinecap="round"
               />
               <path
                 d="M45.1613 46.1393C48.6792 48.5428 50.495 48.4624 53.4946 46.1393"
                 stroke="#0041C9"
-                stroke-width="5"
-                stroke-linecap="round"
+                strokeWidth="5"
+                strokeLinecap="round"
               />
               <path
                 d="M60.9946 28.6398V35.3064"
                 stroke="#0041C9"
-                stroke-width="5"
-                stroke-linecap="round"
+                strokeWidth="5"
+                strokeLinecap="round"
               />
               <defs>
                 <radialGradient
@@ -70,9 +70,9 @@ export function Navbar() {
                   gradientTransform="matrix(-10.6359 70.2967 -54.8468 -5.70751 60.2193 17.5367)"
                   gradientUnits="userSpaceOnUse"
                 >
-                  <stop stop-color="#B7D7FF" />
-                  <stop offset="0.652855" stop-color="#67ACFF" />
-                  <stop offset="1" stop-color="#2E67AC" />
+                  <stop stopColor="#B7D7FF" />
+                  <stop offset="0.652855" stopColor="#67ACFF" />
+                  <stop offset="1" stopColor="#2E67AC" />
                 </radialGradient>
                 <radialGradient
                   id="paint1_radial_504_8"
@@ -82,9 +82,9 @@ export function Navbar() {
                   gradientUnits="userSpaceOnUse"
                   gradientTransform="translate(90.8333 35.25) rotate(143.302) scale(77.3933 122.2)"
                 >
-                  <stop stop-color="#6999FF" />
-                  <stop offset="0.576923" stop-color="#0052FF" />
-                  <stop offset="1" stop-color="#003199" />
+                  <stop stopColor="#6999FF" />
+                  <stop offset="0.576923" stopColor="#0052FF" />
+                  <stop offset="1" stopColor="#003199" />
                 </radialGradient>
               </defs>
             </svg>

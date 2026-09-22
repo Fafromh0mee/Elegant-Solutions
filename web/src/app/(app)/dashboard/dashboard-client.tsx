@@ -137,6 +137,7 @@ export function DashboardClient({
   ocrSetup: {
     activeSemester: string | null;
     rooms: Array<{ id: string; roomCode: string; name: string }>;
+    hasCurrentSemesterSchedule: boolean;
   } | null;
 }) {
   const [minDateTime] = useState(
@@ -823,7 +824,7 @@ export function DashboardClient({
         </div>
       )}
 
-      {user.role === "STUDENT" && ocrSetup && (
+      {user.role === "STUDENT" && ocrSetup && !ocrSetup.hasCurrentSemesterSchedule && (
         <div className="mb-8">
           <OcrTimetablePanel setup={ocrSetup} authenticatedName={user.name} />
         </div>

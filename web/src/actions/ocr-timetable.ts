@@ -17,8 +17,14 @@ export async function getOcrImportSetupAction() {
     getActiveSemester(),
     prisma.room.findMany({ where: { isActive: true }, select: { id: true, roomCode: true, name: true }, orderBy: { roomCode: "asc" } }),
   ]);
+  const currentSemesterSchedule = activeSemester
+    ? await prisma.classSchedule.findFirst({
+        where: { userId: session.user.id, semester: activeSemester },
+        select: { id: true },
+      })
+    : null;
 
-  return { activeSemester, rooms };
+  return { activeSemester, rooms, hasCurrentSemesterSchedule: currentSemesterSchedule !== null };
 }
 
 function isRow(value: unknown): value is OcrTimetableRow {
