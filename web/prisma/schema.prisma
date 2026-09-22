@@ -77,33 +77,40 @@ enum LogAction {
   ROOM_BOOKING_CANCELLED
 }
 
+// Feature 7.5: how a RoomBookingParticipant row came to be authorized.
+enum BookingParticipantSource {
+  SELF
+  GROUP
+}
+
 model User {
-  id             String   @id @default(cuid())
-  email          String   @unique
+  id             String        @id @default(cuid())
+  email          String        @unique
   name           String
   hashedPassword String?
-  role           Role     @default(GUEST)
+  role           Role          @default(GUEST)
   status         AccountStatus @default(APPROVED)
-  studentId      String?  @unique
+  studentId      String?       @unique
   faculty        String?
   major          String?
   phone          String?
   avatarUrl      String?
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
 
   // Relations
-  accessTokens   AccessToken[]
-  sessions       Session[]
-  logs           Log[]
-  ownedGroups    Group[]        @relation("GroupOwner")
-  groupMembers   GroupMember[]
-  faceProfile    FaceProfile?
-  classSchedules ClassSchedule[]
-  agentLogs      AgentLog[]
-  roomBookings     RoomBooking[] @relation("BookingRequester")
-  bookingDecisions RoomBooking[] @relation("BookingDecider")
-  roomClosures     RoomClosure[] @relation("ClosureCreator")
+  accessTokens          AccessToken[]
+  sessions              Session[]
+  logs                  Log[]
+  ownedGroups           Group[]                  @relation("GroupOwner")
+  groupMembers          GroupMember[]
+  faceProfile           FaceProfile?
+  classSchedules        ClassSchedule[]
+  agentLogs             AgentLog[]
+  roomBookings          RoomBooking[]            @relation("BookingRequester")
+  bookingDecisions      RoomBooking[]            @relation("BookingDecider")
+  roomClosures          RoomClosure[]            @relation("ClosureCreator")
+  bookingParticipations RoomBookingParticipant[]
 
   @@map("users")
 }
@@ -135,11 +142,11 @@ model Room {
   approvalPolicy RoomApprovalPolicy @default(AUTO)
 
   // Relations
-  accessTokens  AccessToken[]
-  sessions      Session[]
-  logs          Log[]
-  classSchedules ClassSchedule[]
-  agentMachines AgentMachine[]
+  accessTokens        AccessToken[]
+  sessions            Session[]
+  logs                Log[]
+  classSchedules      ClassSchedule[]
+  agentMachines       AgentMachine[]
   bookings            RoomBooking[]
   closures            RoomClosure[]
   availabilityWindows RoomAvailabilityWindow[]
@@ -174,15 +181,17 @@ model Group {
   createdAt DateTime @default(now())
 
   // Relations
-  owner        User          @relation("GroupOwner", fields: [ownerId], references: [id], onDelete: Cascade)
-  members      GroupMember[]
-  accessTokens AccessToken[]
+  owner               User                     @relation("GroupOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  members             GroupMember[]
+  accessTokens        AccessToken[]
+  // Provenance only on RoomBookingParticipant - never read for authorization once a booking exists.
+  bookingParticipants RoomBookingParticipant[]
 
   @@map("groups")
 }
 
 model GroupMember {
-  id       String @id @default(cuid())
+  id       String   @id @default(cuid())
   groupId  String
   userId   String
   joinedAt DateTime @default(now())
@@ -196,14 +205,14 @@ model GroupMember {
 }
 
 model Session {
-  id                  String        @id @default(cuid())
-  userId              String
-  roomId              String
-  checkIn             DateTime      @default(now())
-  checkOut            DateTime?
-  scheduledCheckOut   DateTime?
-  status              SessionStatus @default(ACTIVE)
-  createdAt           DateTime      @default(now())
+  id                String        @id @default(cuid())
+  userId            String
+  roomId            String
+  checkIn           DateTime      @default(now())
+  checkOut          DateTime?
+  scheduledCheckOut DateTime?
+  status            SessionStatus @default(ACTIVE)
+  createdAt         DateTime      @default(now())
 
   // Relations
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -231,9 +240,9 @@ model ClassSchedule {
   id          String   @id @default(cuid())
   userId      String
   roomId      String
-  dayOfWeek   Int      // 0=Sunday … 6=Saturday
-  startTime   String   // "HH:MM" 24-hour
-  endTime     String   // "HH:MM" 24-hour
+  dayOfWeek   Int // 0=Sunday … 6=Saturday
+  startTime   String // "HH:MM" 24-hour
+  endTime     String // "HH:MM" 24-hour
   section     String?
   subjectName String?
   subjectCode String?
@@ -347,10 +356,11 @@ model RoomBooking {
   // RESTRICT, not Cascade: a booking is historical/audit-relevant transactional data.
   // Deleting a Room or User must not silently erase booking history. Rooms are
   // disabled with isActive; users should be deactivated, not deleted.
-  room      Room              @relation(fields: [roomId], references: [id], onDelete: Restrict)
-  user      User              @relation("BookingRequester", fields: [userId], references: [id], onDelete: Restrict)
-  decidedBy User?             @relation("BookingDecider", fields: [decidedById], references: [id], onDelete: SetNull)
-  slots     RoomBookingSlot[]
+  room         Room                     @relation(fields: [roomId], references: [id], onDelete: Restrict)
+  user         User                     @relation("BookingRequester", fields: [userId], references: [id], onDelete: Restrict)
+  decidedBy    User?                    @relation("BookingDecider", fields: [decidedById], references: [id], onDelete: SetNull)
+  slots        RoomBookingSlot[]
+  participants RoomBookingParticipant[]
 
   @@index([roomId, date, status])
   @@index([userId, date])
@@ -379,6 +389,39 @@ model RoomBookingSlot {
   @@map("room_booking_slots")
 }
 
+// Feature 7.5: the snapshot of WHO a RoomBooking authorizes, taken at creation time.
+//
+// This is deliberately NOT derived from live GroupMember rows. Once a booking exists,
+// its participant set is frozen here; later Group membership changes (joins, and any
+// future removals) never retroactively change what an existing booking authorizes.
+// groupId is provenance only ("this row came from Group X") - it must never be
+// re-queried to decide who is authorized. The creator (RoomBooking.userId) is always
+// also represented here as a participant row.
+model RoomBookingParticipant {
+  id        String                   @id @default(cuid())
+  bookingId String
+  userId    String
+  source    BookingParticipantSource
+  groupId   String?
+  createdAt DateTime                 @default(now())
+
+  // Relations
+  // Cascade: a participant row has no meaning without its booking (mirrors RoomBookingSlot).
+  booking RoomBooking @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  // Restrict, matching RoomBooking.userId: users are deactivated, not deleted, so a
+  // participant row must never silently disappear because a user row was removed.
+  user    User        @relation(fields: [userId], references: [id], onDelete: Restrict)
+  // SetNull, matching AccessToken.groupId: deleting a Group only clears provenance here,
+  // it never touches the booking or this participant row.
+  group   Group?      @relation(fields: [groupId], references: [id], onDelete: SetNull)
+
+  @@unique([bookingId, userId])
+  // The index a future Gate entitlement resolver needs: "does this user participate in
+  // an APPROVED booking covering this room right now?"
+  @@index([userId])
+  @@map("room_booking_participants")
+}
+
 // Allowed booking day+slot for a room. FAIL-CLOSED:
 // a room with bookingEnabled = true but NO rows here is "not configured" and is
 // therefore NOT bookable. All days / all slots must be represented explicitly.
@@ -399,16 +442,16 @@ model RoomAvailabilityWindow {
 // Temporary closure / maintenance. Distinct from Room.isActive, which is permanent,
 // and from the site-wide MAINTENANCE_MODE SystemSetting.
 model RoomClosure {
-  id          String   @id @default(cuid())
+  id          String         @id @default(cuid())
   roomId      String
   // Inclusive Asia/Bangkok calendar dates.
-  startDate   DateTime @db.Date
-  endDate     DateTime @db.Date
+  startDate   DateTime       @db.Date
+  endDate     DateTime       @db.Date
   // Empty means the whole date range is closed; otherwise only these slots are.
   slots       AcademicSlot[] @default([])
   reason      String?
   createdById String?
-  createdAt   DateTime @default(now()) @db.Timestamptz(3)
+  createdAt   DateTime       @default(now()) @db.Timestamptz(3)
 
   // Relations
   room      Room  @relation(fields: [roomId], references: [id], onDelete: Cascade)

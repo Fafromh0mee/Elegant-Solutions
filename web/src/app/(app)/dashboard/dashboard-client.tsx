@@ -42,8 +42,11 @@ import {
 } from "@/actions/profile";
 import { getMyClassSchedulesAction } from "@/actions/class-schedules";
 import { getRoleLabel } from "@/lib/ui-terms";
-import { canUseRoomFinder } from "@/lib/permissions";
 import { RoomFinderEntry } from "@/components/room-finder-entry";
+import { MyBookingsSection } from "@/components/my-bookings-section";
+import { slotTimeToMinutes, SYSTEM_CLOSE_TIME, SYSTEM_OPEN_TIME } from "@/lib/academic-slots";
+import type { DashboardBooking } from "@/lib/room-booking-rules";
+import type { DashboardRoomFinder } from "@/lib/room-finder-search";
 import type { AuthUser } from "@/lib/types";
 import QRCode from "qrcode";
 
@@ -100,24 +103,36 @@ function toDateTimeLocal(date: Date) {
   return `${y}-${m}-${d}T${hh}:${mm}`;
 }
 
-const OPEN_HOUR = 6;
-const CLOSE_HOUR = 20;
+// The building's real operating hours (first slot's start to last slot's end),
+// not a separately maintained guess - see lib/academic-slots.ts.
+const OPEN_MINS = slotTimeToMinutes(SYSTEM_OPEN_TIME);
+const CLOSE_MINS = slotTimeToMinutes(SYSTEM_CLOSE_TIME);
 
 function validateOperatingHours(fromStr: string, toStr: string): string | null {
   const from = new Date(fromStr);
   const to = new Date(toStr);
   const fromMins = from.getHours() * 60 + from.getMinutes();
   const toMins = to.getHours() * 60 + to.getMinutes();
-  if (fromMins < OPEN_HOUR * 60 || fromMins >= CLOSE_HOUR * 60) {
-    return "เวลาเริ่มต้นต้องอยู่ในช่วง 06:00 – 20:00 น.";
+  if (fromMins < OPEN_MINS || fromMins >= CLOSE_MINS) {
+    return `เวลาเริ่มต้นต้องอยู่ในช่วง ${SYSTEM_OPEN_TIME} – ${SYSTEM_CLOSE_TIME} น.`;
   }
-  if (toMins > CLOSE_HOUR * 60) {
-    return "เวลาสิ้นสุดต้องไม่เกิน 20:00 น.";
+  if (toMins > CLOSE_MINS) {
+    return `เวลาสิ้นสุดต้องไม่เกิน ${SYSTEM_CLOSE_TIME} น.`;
   }
   return null;
 }
 
-export function DashboardClient({ user }: { user: AuthUser }) {
+export function DashboardClient({
+  user,
+  roomFinder,
+  myBookings,
+}: {
+  user: AuthUser;
+  /** null for users without Room Finder (a GUEST not yet approved). */
+  roomFinder: DashboardRoomFinder | null;
+  /** The user's own next PENDING/APPROVED bookings; null hides the section. */
+  myBookings: DashboardBooking[] | null;
+}) {
   const [minDateTime] = useState(
     () => new Date(Date.now() + 60_000).toISOString().slice(0, 16),
   );
@@ -1119,7 +1134,9 @@ export function DashboardClient({ user }: { user: AuthUser }) {
         </div>
       )}
 
-      {canUseRoomFinder(user.role) && <RoomFinderEntry />}
+      <MyBookingsSection bookings={myBookings} />
+
+      {roomFinder && <RoomFinderEntry initial={roomFinder} />}
 
       {/* Quick Actions */}
       <div
@@ -1297,7 +1314,7 @@ export function DashboardClient({ user }: { user: AuthUser }) {
                 </div>
               </div>
               <p className="text-xs text-gray-500">
-                ⏰ ระบบเปิดให้บริการ 06:00 – 20:00 น. เท่านั้น
+                ⏰ ระบบเปิดให้บริการ {SYSTEM_OPEN_TIME} – {SYSTEM_CLOSE_TIME} น. เท่านั้น
               </p>
               <button
                 type="submit"
@@ -1557,7 +1574,7 @@ export function DashboardClient({ user }: { user: AuthUser }) {
                 </div>
               </div>
               <p className="text-xs text-gray-500">
-                ⏰ ระบบเปิดให้บริการ 06:00 – 20:00 น. เท่านั้น
+                ⏰ ระบบเปิดให้บริการ {SYSTEM_OPEN_TIME} – {SYSTEM_CLOSE_TIME} น. เท่านั้น
               </p>
               <button
                 type="submit"

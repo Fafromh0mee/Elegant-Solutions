@@ -29,6 +29,15 @@ export const ACADEMIC_SLOTS: readonly AcademicSlotDefinition[] = [
 
 export const ACADEMIC_SLOT_VALUES: readonly AcademicSlot[] = ACADEMIC_SLOTS.map((s) => s.slot);
 
+/**
+ * The building's operating hours, derived from the slot grid itself (first slot's
+ * start to last slot's end) rather than a separately maintained literal. Used by the
+ * legacy direct access-token request flow (actions/access-tokens.ts, actions/groups.ts,
+ * dashboard-client.tsx) to keep its allowed window in sync with the real academic day.
+ */
+export const SYSTEM_OPEN_TIME = ACADEMIC_SLOTS[0].startTime;
+export const SYSTEM_CLOSE_TIME = ACADEMIC_SLOTS[ACADEMIC_SLOTS.length - 1].endTime;
+
 const slotMap = new Map<AcademicSlot, AcademicSlotDefinition>(
   ACADEMIC_SLOTS.map((definition) => [definition.slot, definition])
 );

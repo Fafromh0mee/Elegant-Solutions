@@ -292,3 +292,66 @@ export function getRoomFinderErrorMessage(code: string): string {
       return "เกิดข้อผิดพลาด";
   }
 }
+
+/**
+ * Why a booking cannot be made. Finder input errors fall back to getRoomFinderErrorMessage.
+ * `detail` is either the remaining-capacity number (CAPACITY_INSUFFICIENT) or a
+ * participant's display name (DUPLICATE_BOOKING / OVERLAPPING_BOOKING /
+ * INELIGIBLE_PARTICIPANT / GUEST_ROOM_NOT_ALLOWED, when the issue concerns someone
+ * other than the viewer themselves).
+ */
+export function getBookingErrorMessage(code: string, detail?: number | string): string {
+  switch (code) {
+    case "INVALID_ROOM":
+    case "ROOM_NOT_FOUND":
+      return "ไม่พบห้องนี้ กรุณากลับไปค้นหาห้องอีกครั้ง";
+    case "SLOT_TOO_LATE":
+      return "คาบนี้เหลือเวลาน้อยกว่า 15 นาที จึงไม่สามารถจองได้แล้ว กรุณาเลือกคาบถัดไป";
+    case "NOT_ALLOWED":
+      return "บัญชีนี้ไม่สามารถจองห้องได้";
+    case "GUEST_ROOM_NOT_ALLOWED":
+      return typeof detail === "string"
+        ? `ห้องนี้ไม่เปิดให้บุคคลภายนอกจอง แต่ ${detail} เป็นบุคคลภายนอก`
+        : "ห้องนี้ไม่ได้เปิดให้บุคคลภายนอกจองแล้ว กรุณาเลือกห้องอื่น";
+    case "ROOM_NOT_BOOKABLE":
+      return "ห้องนี้ไม่เปิดให้จองแล้ว กรุณาเลือกห้องอื่น";
+    case "CAPABILITY_CHANGED":
+      return "ห้องนี้ไม่ตรงกับประเภทพื้นที่ที่คุณค้นหาแล้ว กรุณาค้นหาห้องอีกครั้ง";
+    case "OUTSIDE_WINDOW":
+      return "ห้องนี้ไม่เปิดให้ใช้ในช่วงเวลาที่เลือกแล้ว";
+    case "CLOSED":
+      return "ห้องนี้ปิดปรับปรุงในช่วงเวลาที่เลือก";
+    case "CLASS_IN_SESSION":
+      return "ห้องนี้มีการเรียนการสอนในช่วงเวลาที่เลือก จึงไม่สามารถจองได้";
+    case "CAPACITY_INSUFFICIENT":
+      return typeof detail === "number" && detail > 0
+        ? `ที่ว่างไม่พอแล้ว ห้องนี้จองเพิ่มได้อีก ${detail} ที่ในช่วงเวลาที่เลือก`
+        : "ห้องนี้ถูกจองเต็มแล้วในช่วงเวลาที่เลือก";
+    case "DUPLICATE_BOOKING":
+      return typeof detail === "string"
+        ? `${detail} มีการจองห้องนี้ในช่วงเวลาที่ทับซ้อนกันอยู่แล้ว`
+        : "คุณมีการจองห้องนี้ในช่วงเวลาที่ทับซ้อนกันอยู่แล้ว";
+    case "OVERLAPPING_BOOKING":
+      return typeof detail === "string"
+        ? `${detail} มีการจองห้องอื่นในช่วงเวลานี้อยู่แล้ว`
+        : "คุณมีการจองห้องอื่นในช่วงเวลานี้อยู่แล้ว";
+    case "INVALID_PARTICIPANTS":
+      return "ข้อมูลผู้เข้าร่วมไม่ถูกต้อง";
+    case "GROUP_NOT_FOUND":
+      return "ไม่พบกลุ่มนี้";
+    case "NOT_GROUP_OWNER":
+      return "คุณไม่ใช่เจ้าของกลุ่มนี้ จึงไม่สามารถใช้กลุ่มนี้จองห้องได้";
+    case "GROUP_MEMBERSHIP_CHANGED":
+      return "รายชื่อสมาชิกกลุ่มมีการเปลี่ยนแปลงตั้งแต่ครั้งล่าสุดที่ตรวจสอบ กรุณาตรวจสอบกลุ่มอีกครั้งก่อนยืนยัน";
+    case "INELIGIBLE_PARTICIPANT":
+      return typeof detail === "string"
+        ? `${detail} ยังไม่มีสิทธิ์เข้าร่วมการจองนี้ (ต้องเป็นนักศึกษา หรือบุคคลภายนอกที่ได้รับการอนุมัติแล้ว)`
+        : "มีสมาชิกในกลุ่มที่ยังไม่มีสิทธิ์จองห้อง";
+    case "BUSY":
+      return "มีผู้จองห้องนี้พร้อมกันจำนวนมาก กรุณาลองใหม่อีกครั้ง";
+    case "FAILED":
+      return "จองห้องไม่สำเร็จ กรุณาลองใหม่อีกครั้ง";
+    default:
+      return getRoomFinderErrorMessage(code);
+  }
+}

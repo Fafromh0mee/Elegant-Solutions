@@ -4,6 +4,10 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import crypto from "crypto";
 import { revalidatePath } from "next/cache";
+import { slotTimeToMinutes, SYSTEM_CLOSE_TIME, SYSTEM_OPEN_TIME } from "@/lib/academic-slots";
+
+const OPEN_MINS = slotTimeToMinutes(SYSTEM_OPEN_TIME);
+const CLOSE_MINS = slotTimeToMinutes(SYSTEM_CLOSE_TIME);
 
 export async function generateAccessTokenAction(input: {
   roomId: string;
@@ -36,11 +40,11 @@ export async function generateAccessTokenAction(input: {
 
     const fromMins = validFrom.getHours() * 60 + validFrom.getMinutes();
     const toMins = validTo.getHours() * 60 + validTo.getMinutes();
-    if (fromMins < 6 * 60 || fromMins >= 20 * 60) {
-      return { error: "เวลาเริ่มต้นต้องอยู่ในช่วง 06:00 – 20:00 น." };
+    if (fromMins < OPEN_MINS || fromMins >= CLOSE_MINS) {
+      return { error: `เวลาเริ่มต้นต้องอยู่ในช่วง ${SYSTEM_OPEN_TIME} – ${SYSTEM_CLOSE_TIME} น.` };
     }
-    if (toMins > 20 * 60) {
-      return { error: "เวลาสิ้นสุดต้องไม่เกิน 20:00 น." };
+    if (toMins > CLOSE_MINS) {
+      return { error: `เวลาสิ้นสุดต้องไม่เกิน ${SYSTEM_CLOSE_TIME} น.` };
     }
 
     // Check room access

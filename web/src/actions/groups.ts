@@ -3,6 +3,10 @@
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
+import { slotTimeToMinutes, SYSTEM_CLOSE_TIME, SYSTEM_OPEN_TIME } from "@/lib/academic-slots";
+
+const OPEN_MINS = slotTimeToMinutes(SYSTEM_OPEN_TIME);
+const CLOSE_MINS = slotTimeToMinutes(SYSTEM_CLOSE_TIME);
 
 export async function createGroupAction(input: {
   name: string;
@@ -106,6 +110,32 @@ export async function getMyGroupsAction() {
   return { groups };
 }
 
+export interface OwnedGroupSummary {
+  id: string;
+  name: string;
+  code: string;
+  memberCount: number;
+}
+
+/**
+ * Groups the current user OWNS - the only groups they may book with (Feature 7.5).
+ * Distinct from getMyGroupsAction, which returns groups they merely belong to: a
+ * non-owner picking one of those in the booking flow would only be rejected at
+ * confirm time, so the "เลือกกลุ่ม" picker is populated from this action instead.
+ */
+export async function getMyOwnedGroupsAction(): Promise<{ groups: OwnedGroupSummary[] }> {
+  const session = await auth();
+  if (!session) return { groups: [] };
+
+  const groups = await prisma.group.findMany({
+    where: { ownerId: session.user.id },
+    select: { id: true, name: true, code: true, _count: { select: { members: true } } },
+    orderBy: { createdAt: "desc" },
+  });
+
+  return { groups: groups.map((g) => ({ id: g.id, name: g.name, code: g.code, memberCount: g._count.members })) };
+}
+
 export async function generateGroupTokenAction(input: {
   groupId: string;
   roomId: string;
@@ -138,11 +168,11 @@ export async function generateGroupTokenAction(input: {
 
     const fromMins = validFrom.getHours() * 60 + validFrom.getMinutes();
     const toMins = validTo.getHours() * 60 + validTo.getMinutes();
-    if (fromMins < 6 * 60 || fromMins >= 20 * 60) {
-      return { error: "เวลาเริ่มต้นต้องอยู่ในช่วง 06:00 – 20:00 น." };
+    if (fromMins < OPEN_MINS || fromMins >= CLOSE_MINS) {
+      return { error: `เวลาเริ่มต้นต้องอยู่ในช่วง ${SYSTEM_OPEN_TIME} – ${SYSTEM_CLOSE_TIME} น.` };
     }
-    if (toMins > 20 * 60) {
-      return { error: "เวลาสิ้นสุดต้องไม่เกิน 20:00 น." };
+    if (toMins > CLOSE_MINS) {
+      return { error: `เวลาสิ้นสุดต้องไม่เกิน ${SYSTEM_CLOSE_TIME} น.` };
     }
 
     const group = await prisma.group.findUnique({
