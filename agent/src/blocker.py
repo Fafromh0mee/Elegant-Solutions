@@ -11,6 +11,8 @@ import logging
 import platform
 from pathlib import Path
 
+from logging_setup import safe_exception
+
 logger = logging.getLogger(__name__)
 
 _IS_WINDOWS = platform.system() == "Windows"
@@ -22,13 +24,27 @@ _HOSTS_PATH = (
 
 _MARKER_START = "# --- ElegantAgent START ---"
 _MARKER_END = "# --- ElegantAgent END ---"
+_IS_LINUX = platform.system() == "Linux"
+_LINUX_WARNING_LOGGED = False
+
+
+def log_platform_status() -> None:
+    if _IS_LINUX:
+        _log_linux_disabled()
+
+
+def _log_linux_disabled() -> None:
+    global _LINUX_WARNING_LOGGED
+    if not _LINUX_WARNING_LOGGED:
+        logger.warning("Hosts-file enforcement is disabled on Linux for the pilot")
+        _LINUX_WARNING_LOGGED = True
 
 
 def _read_hosts() -> str:
     try:
         return _HOSTS_PATH.read_text(encoding="utf-8")
     except Exception as exc:
-        logger.error("Cannot read hosts file: %s", exc)
+        logger.error("Cannot read hosts file: %s", safe_exception(exc))
         return ""
 
 
@@ -42,7 +58,7 @@ def _write_hosts(content: str) -> bool:
         )
         return False
     except Exception as exc:
-        logger.error("Cannot write hosts file: %s", exc)
+        logger.error("Cannot write hosts file: %s", safe_exception(exc))
         return False
 
 
@@ -69,6 +85,10 @@ def apply_blacklist(patterns: list[str]) -> bool:
     Clears previous ElegantAgent entries and writes fresh ones.
     Returns True if the file was updated successfully.
     """
+    if _IS_LINUX:
+        _log_linux_disabled()
+        return True
+
     content = _read_hosts()
     if content is None:
         return False
@@ -97,6 +117,9 @@ def apply_blacklist(patterns: list[str]) -> bool:
 
 def clear_blacklist() -> bool:
     """Remove all ElegantAgent-managed entries from the hosts file."""
+    if _IS_LINUX:
+        _log_linux_disabled()
+        return True
     content = _read_hosts()
     cleaned = _strip_managed_block(content)
     return _write_hosts(cleaned)
@@ -104,6 +127,9 @@ def clear_blacklist() -> bool:
 
 def get_current_blocked() -> list[str]:
     """Return list of domains currently blocked by ElegantAgent."""
+    if _IS_LINUX:
+        _log_linux_disabled()
+        return []
     content = _read_hosts()
     lines = content.splitlines()
     inside = False

@@ -84,7 +84,7 @@ def _label(parent, text: str, size: int = 9, color: str = FG_MUTED, bold: bool =
 
 # ── Login Dialog ───────────────────────────────────────────────────────────────
 
-def show_login_dialog(server_url: str) -> Optional[dict]:
+def show_login_dialog(server_url: str, api_key: str) -> Optional[dict]:
     from api_client import verify_user
 
     result: Optional[dict] = None
@@ -135,8 +135,9 @@ def show_login_dialog(server_url: str) -> Optional[dict]:
             return
         error_var.set("กำลังตรวจสอบ...")
         root.update()
-        resp = verify_user(server_url, email, password)
+        resp = verify_user(server_url, api_key, email, password)
         if resp is None or "error" in resp:
+            logger.warning("User authentication failed")
             error_var.set(resp.get("error", "เชื่อมต่อไม่ได้") if resp else "เชื่อมต่อไม่ได้")
             return
         result = resp
@@ -153,6 +154,64 @@ def show_login_dialog(server_url: str) -> Optional[dict]:
 
 
 # ── Setup Wizard ───────────────────────────────────────────────────────────────
+
+def show_activation_dialog(server_url: str) -> Optional[dict]:
+    """Activate a pilot machine using an administrator-issued one-time code."""
+    import platform
+    import socket
+    from api_client import activate_machine
+
+    result: Optional[dict] = None
+    hostname = socket.gethostname()
+
+    root = tk.Tk()
+    root.title("Elegant Agent — เปิดใช้งานเครื่อง")
+    root.configure(bg=BG)
+    root.resizable(False, False)
+
+    win_w, win_h = 430, 330
+    root.update_idletasks()
+    x = (root.winfo_screenwidth() - win_w) // 2
+    y = (root.winfo_screenheight() - win_h) // 2
+    root.geometry(f"{win_w}x{win_h}+{x}+{y}")
+    root.attributes("-topmost", True)
+
+    card = tk.Frame(root, bg=CARD_BG, padx=36, pady=30)
+    card.pack(fill="both", expand=True, padx=20, pady=20)
+    tk.Label(card, text="เปิดใช้งานเครื่อง", font=(FONT, 16, "bold"), bg=CARD_BG, fg=FG).pack(anchor="w")
+    tk.Label(
+        card,
+        text="กรอกรหัส 6 หลักที่ผู้ดูแลระบบสร้างให้ รหัสใช้ได้ครั้งเดียวภายใน 10 นาที",
+        font=(FONT, 10), bg=CARD_BG, fg=FG_MUTED, justify="left", wraplength=340,
+    ).pack(anchor="w", pady=(4, 20))
+    _label(card, "Activation Code")
+    code_var = tk.StringVar()
+    code_entry = _make_input(card, code_var)
+    error_var = tk.StringVar()
+    tk.Label(card, textvariable=error_var, font=(FONT, 9), bg=CARD_BG, fg=FG_ERROR, anchor="w", wraplength=340).pack(fill="x")
+
+    def on_activate():
+        nonlocal result
+        activation_code = code_var.get().strip()
+        if not activation_code.isdigit() or len(activation_code) != 6:
+            error_var.set("กรุณากรอกรหัสเปิดใช้งาน 6 หลัก")
+            return
+        error_var.set("กำลังเปิดใช้งาน...")
+        root.update()
+        response = activate_machine(server_url, activation_code, hostname, platform.system())
+        if not response or "apiKey" not in response:
+            logger.warning("Machine activation failed in activation dialog")
+            error_var.set(response.get("error", "เปิดใช้งานไม่สำเร็จ") if response else "เชื่อมต่อเซิร์ฟเวอร์ไม่ได้")
+            return
+        result = response
+        root.destroy()
+
+    _make_custom_button(card, "เปิดใช้งานเครื่อง", on_activate)
+    code_entry.bind("<Return>", lambda _: on_activate())
+    root.protocol("WM_DELETE_WINDOW", root.destroy)
+    code_entry.focus()
+    root.mainloop()
+    return result
 
 def show_setup_wizard(current_cfg: dict) -> Optional[dict]:
     import socket
@@ -224,10 +283,12 @@ def show_setup_wizard(current_cfg: dict) -> Optional[dict]:
         error_var.set("กำลังลงทะเบียน...")
         root.update()
 
+        import platform
         resp = register_machine(server_url, register_secret, machine_code,
-                                default_hostname, room_code)
+                                default_hostname, room_code, platform.system())
 
         if not resp or "apiKey" not in resp:
+            logger.warning("Machine registration failed in setup wizard")
             error_var.set("ลงทะเบียนไม่สำเร็จ — ตรวจสอบ URL และ Secret")
             return
 
@@ -246,3 +307,46 @@ def show_setup_wizard(current_cfg: dict) -> Optional[dict]:
     entries[0].focus()
     root.mainloop()
     return result
+
+
+def show_maintenance_dialog(server_url: str, api_key: str) -> bool:
+    """Validate an ENTER_MAINTENANCE code without granting normal-user powers."""
+    from api_client import authorize_maintenance
+
+    authorized = False
+    root = tk.Tk()
+    root.title("Elegant Agent — Administrator Maintenance")
+    root.configure(bg=BG)
+    root.resizable(False, False)
+    root.geometry("360x230")
+    root.attributes("-topmost", True)
+
+    card = tk.Frame(root, bg=CARD_BG, padx=28, pady=24)
+    card.pack(fill="both", expand=True, padx=18, pady=18)
+    tk.Label(card, text="Administrator Maintenance", font=(FONT, 15, "bold"), bg=CARD_BG, fg=FG).pack(anchor="w")
+    _label(card, "Maintenance Code", size=9)
+    code_var = tk.StringVar()
+    code_entry = _make_input(card, code_var)
+    error_var = tk.StringVar()
+    tk.Label(card, textvariable=error_var, font=(FONT, 9), bg=CARD_BG, fg=FG_ERROR, anchor="w").pack(fill="x")
+
+    def on_continue():
+        nonlocal authorized
+        code = code_var.get().strip()
+        if not code:
+            error_var.set("กรุณากรอกรหัส")
+            return
+        error_var.set("กำลังตรวจสอบ...")
+        root.update()
+        if authorize_maintenance(server_url, api_key, code, "ENTER_MAINTENANCE"):
+            authorized = True
+            root.destroy()
+        else:
+            error_var.set("รหัสไม่ถูกต้อง หมดอายุ หรือถูกใช้แล้ว")
+
+    _make_custom_button(card, "Continue", on_continue)
+    code_entry.bind("<Return>", lambda _: on_continue())
+    root.protocol("WM_DELETE_WINDOW", root.destroy)
+    code_entry.focus()
+    root.mainloop()
+    return authorized

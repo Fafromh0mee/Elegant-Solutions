@@ -1,6 +1,7 @@
-psutil>=6.0.0
-requests>=2.31.0
-plyer>=2.1.0
-pystray>=0.19.5
-Pillow>=10.0.0
-pywin32>=308; sys_platform == "win32"
+psutil==6.0.0
+requests==2.31.0
+plyer==2.1.0
+pystray==0.19.5
+Pillow==10.0.0
+pywin32==308; sys_platform == "win32"
+python-xlib==0.33; sys_platform == "linux"

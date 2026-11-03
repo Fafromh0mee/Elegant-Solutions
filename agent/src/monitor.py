@@ -1,72 +1,38 @@
-"""
-Process and window-title monitor (Windows-only).
-Uses psutil for process enumeration and win32gui for the active window title.
-Falls back gracefully on non-Windows platforms for development.
-"""
+"""Cross-platform process/window monitoring and risk classification."""
 import logging
-import platform
 import re
 from typing import Optional
 
-import psutil
+from logging_setup import safe_exception
+from platform_support import ActiveWindowInfo, environment_description, get_active_window
 
 logger = logging.getLogger(__name__)
 
-_IS_WINDOWS = platform.system() == "Windows"
-
-if _IS_WINDOWS:
-    try:
-        import win32gui
-        import win32process
-        _WIN32_AVAILABLE = True
-    except ImportError:
-        _WIN32_AVAILABLE = False
-        logger.warning("pywin32 not available — window-title tracking disabled")
-else:
-    _WIN32_AVAILABLE = False
+def get_active_window_snapshot() -> ActiveWindowInfo:
+    """Return the platform provider's active-window result."""
+    return get_active_window()
 
 
 def get_active_window_info() -> tuple[str, str]:
-    """
-    Return (app_name, window_title) for the currently focused window.
-    Both values are empty strings when unavailable.
-    """
-    if not _WIN32_AVAILABLE:
-        return _fallback_top_process()
-
-    try:
-        hwnd = win32gui.GetForegroundWindow()
-        if not hwnd:
-            return "", ""
-
-        title = win32gui.GetWindowText(hwnd)
-
-        _, pid = win32process.GetWindowThreadProcessId(hwnd)
-        try:
-            proc = psutil.Process(pid)
-            app_name = proc.name().replace(".exe", "")
-        except (psutil.NoSuchProcess, psutil.AccessDenied):
-            app_name = ""
-
-        return app_name, title
-    except Exception as exc:
-        logger.debug("get_active_window_info error: %s", exc)
-        return "", ""
+    """Preserve the existing tuple interface used by risk classification."""
+    snapshot = get_active_window_snapshot()
+    return snapshot.app_name, snapshot.window_title
 
 
-def _fallback_top_process() -> tuple[str, str]:
-    """Return the name of the process using the most CPU (dev fallback)."""
-    try:
-        procs = [
-            p for p in psutil.process_iter(["name", "cpu_percent"])
-            if p.info["cpu_percent"] and p.info["cpu_percent"] > 0
-        ]
-        if not procs:
-            return "", ""
-        top = max(procs, key=lambda p: p.info["cpu_percent"])
-        return top.info["name"].replace(".exe", ""), ""
-    except Exception:
-        return "", ""
+def log_capability_status() -> None:
+    """Log OS/session/capability state once at Agent startup."""
+    details = environment_description()
+    logger.info(
+        "Operating system: %s; desktop session: %s; active-window capability: %s",
+        details["os"],
+        details["session"],
+        details["active_window"],
+    )
+    if details["active_window"] not in {"windows-pywin32", "x11-ewmh"}:
+        logger.warning(
+            "Active-window title tracking unavailable or degraded: %s",
+            details["active_window"],
+        )
 
 
 # --- Risk calculation ---

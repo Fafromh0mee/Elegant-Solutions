@@ -1,76 +1,257 @@
-# Elegant Solutions — Tracking Agent
+# Elegant Solutions — Windows Tracking Agent
 
-Python agent ที่รันบน Windows เพื่อติดตามการใช้งานคอมพิวเตอร์ในห้องเรียน
-และรายงานข้อมูลแบบ real-time ไปยัง Admin Dashboard
+This directory contains the Windows pilot build and deployment files for the
+existing Tracking Agent. Registration remains machine/API-key based, while user
+login now creates a short-lived server-issued session bound to the machine and
+its configured room entitlement.
 
-## โครงสร้างไฟล์
+## Build
 
-```
-agent/
-├── src/
-│   ├── main.py          # Entry point, tray icon, orchestration
-│   ├── monitor.py       # ดึง active process + window title
-│   ├── auth_dialog.py   # Login dialog (tkinter) + Setup wizard
-│   ├── blocker.py       # บล็อกเว็บผ่าน hosts file
-│   ├── notifier.py      # Windows toast notifications
-│   ├── api_client.py    # HTTP client สำหรับติดต่อ web server
-│   └── config.py        # อ่าน/เขียน config.json
-├── requirements.txt
-├── build.bat            # Compile เป็น .exe ด้วย PyInstaller
-└── setup.bat            # ลงทะเบียน Task Scheduler (run as Admin)
-```
-
-## การติดตั้ง (Development)
-
-```bash
-pip install -r requirements.txt
-cd src
-python main.py
-```
-
-## การ Build เป็น .exe
+Build on Windows from this directory after setting the deployed, non-secret server URL:
 
 ```bat
+set ELEGANT_SERVER_URL=https://pilot.example.com
 build.bat
-# ได้ไฟล์: dist\ElegantAgent.exe
 ```
 
-## การ Deploy บน Windows
+The script installs the pinned runtime dependencies and PyInstaller, cleans
+generated output, and creates:
 
-1. Copy `dist\ElegantAgent.exe` ไปวางในเครื่อง
-2. รัน `setup.bat` ในฐานะ Administrator
-3. Agent จะ start อัตโนมัติทุกครั้งที่ login
-
-## Setup ครั้งแรก
-
-เมื่อรัน agent ครั้งแรกบนเครื่องใหม่ จะมี wizard ขึ้นมาให้กรอก:
-- **URL ของเซิร์ฟเวอร์** — เช่น `https://elegant.yourdomain.com`
-- **รหัสเครื่อง** — เช่น `LAB-A101-PC01`
-- **รหัสห้อง** — เช่น `A101` (optional)
-- **Register Secret** — ขอจาก Admin (ตั้งใน `AGENT_REGISTER_SECRET` env var)
-
-## Web Server — env vars ที่ต้องมี
-
-```env
-AGENT_REGISTER_SECRET="your-strong-secret"
+```text
+dist\ElegantAgent.exe
 ```
 
-## API Endpoints
+It also creates a clean pilot package under `release\` containing only the
+executable, deployment scripts, cleanup helpers, and this README.
 
-| Method | Path | Description |
-|--------|------|-------------|
-| POST | `/api/agent/register` | ลงทะเบียนเครื่องใหม่ |
-| POST | `/api/agent/auth` | ตรวจสอบ login ของ user |
-| POST | `/api/agent/heartbeat` | ส่งข้อมูล activity ทุก 10s |
-| GET | `/api/agent/config` | ดึง blacklist + session info |
-| GET | `/api/tracking/snapshot` | ดึงข้อมูลทั้งหมดสำหรับ dashboard |
+The build packages `deployment.json` containing only the server URL. It does
+not read or package `config.json`, `.env` files, API keys, activation codes, or
+registration secrets. Keep the historical `agent.zip` out of pilot releases;
+it contains machine-specific runtime data and is retained only for reference.
 
-## Features
+## Install
 
-- **Login** — ใช้ email/password เดียวกับระบบเว็บ
-- **Monitor** — ติดตาม active app + window title ทุก 10 วินาที
-- **Risk Detection** — เปรียบเทียบกับ blacklist และ keyword patterns
-- **Website Blocker** — แก้ hosts file เพื่อบล็อก domain ที่อยู่ใน blacklist
-- **Notifications** — แจ้งเตือนก่อนหมดเวลา 10 นาที และ 2 นาที
-- **System Tray** — icon ใน notification area พร้อม logout / status
-- **Auto-start** — ผ่าน Windows Task Scheduler
+Use the generated `release\` directory as the deployment package:
+
+```text
+release\
+├── dist\ElegantAgent.exe
+├── setup.bat
+├── uninstall.bat
+├── remove_hosts.ps1
+├── stop_agent.ps1
+└── deployment.json
+```
+
+Run `setup.bat` as Administrator. It installs the executable to:
+
+```text
+C:\Program Files\ElegantSolution\Agent\ElegantAgent.exe
+```
+
+The machine configuration and logs are stored separately under:
+
+```text
+C:\ProgramData\ElegantSolution\Agent\
+├── config.json
+└── logs\ElegantAgent.log
+```
+
+No existing `config.json` is copied by the installer.
+
+## First-run activation
+
+The pilot build reads its server URL from the non-secret installed
+`deployment.json`; users do not enter a server URL, room code, machine code,
+or registration secret. The first launch asks only for the six-digit
+Activation Code created by an administrator for the intended room.
+
+The code is single-use and expires after 10 minutes. On success the server
+returns the reserved machine code, room identity, and machine API key. The
+Agent stores only those runtime values in its ProgramData configuration; the
+activation code is never saved. Administrators create, review pending, and
+cancel activation codes in **Admin → Tracking → เพิ่มคอมพิวเตอร์**. Machine
+numbers are issued per room as `ROOM-CODE-PC01`, `PC02`, and so on, and are
+never reused after a cancellation or deactivation.
+
+The legacy `/api/agent/register` endpoint and setup wizard remain available
+only for local/developer compatibility when no release deployment URL is
+provided. They are not the pilot user experience.
+
+## Autostart
+
+Installation creates the existing Scheduled Task:
+
+```text
+ElegantSolutionsAgent
+```
+
+It runs the installed executable at user logon with the highest available task
+run level and a 10-second delay. The installer also starts the task immediately.
+
+## Logs
+
+The windowed build writes rotating logs to:
+
+```text
+C:\ProgramData\ElegantSolution\Agent\logs\ElegantAgent.log
+```
+
+Up to three 5 MB backup files are retained. Logs include startup/shutdown,
+activation, authentication, heartbeat, configuration sync, tracking,
+hosts-file, notification, and network failures. Passwords, registration
+secrets, API keys, and authorization tokens are never logged.
+
+## Agent sessions and tray behavior
+
+The Agent validates the configured machine, room, and the central room
+entitlement resolver before login. Entitlements are the existing CLASS,
+APPROVED BOOKING participant, and user-scoped LEGACY_TOKEN sources. The server
+returns an opaque session token and expiry; only a hash is stored server-side.
+Heartbeats derive the logged-in user from that session, never from a client
+email field. The Agent warns 15 minutes before expiry, refreshes at expiry for
+continuous entitlement, or logs out only the Agent user session and returns to
+the login state. Machine heartbeat continues without a user, while active-window
+details are collected and stored only during a valid user session.
+
+The normal tray has status, login, logout, and Administrator Maintenance
+entries; it does not expose Quit/Stop/Disable/Uninstall. Maintenance requires a
+five-minute, single-use code generated by an administrator for one machine and
+one action. Activation/registration credentials are separate from maintenance
+codes.
+
+## Uninstall
+
+Run `uninstall.bat` as Administrator from the pilot package and enter the
+server-issued `UNINSTALL_AGENT` Maintenance Code. It:
+
+- stops the Agent and Scheduled Task;
+- removes the `ElegantSolutionsAgent` task;
+- removes only the hosts-file block between the Agent markers;
+- removes the ProgramData configuration/API key and logs;
+- removes the installed Agent files.
+
+Unrelated hosts-file entries and other applications are not targeted.
+
+## Linux pilot
+
+The Linux pilot supports x86-64 Linux, with Ubuntu 22.04 and 24.04 as the
+primary targets. It does not require root for normal operation.
+
+### Linux behavior
+
+- X11: active-window, process-name, window-title, and PID capture use the
+  EWMH/X11 interface through `python-xlib`.
+- Wayland: the Agent remains online and continues registration, login,
+  heartbeat, config sync, risk classification, logging, and other safe
+  behavior. Active-window fields are sent as unavailable (`null`) when the
+  desktop does not expose them; titles are never guessed.
+- Linux hosts-file blocking is disabled for this pilot and is logged as
+  unavailable. `/etc/hosts` is not modified.
+- If tray support is unavailable, the Agent continues running in the
+  graphical session. Stop it with `uninstall.sh` or send `SIGTERM` to the PID
+  stored at `~/.local/state/elegant-solution/agent/agent.pid`.
+
+### Linux packages and build
+
+On Ubuntu, install the required system packages before installation:
+
+```bash
+sudo apt install python3 python3-tk python3-venv
+```
+
+On a Linux x86-64 build machine, create a clean package:
+
+```bash
+ELEGANT_SERVER_URL=https://pilot.example.com ./build-linux.sh
+```
+
+The package is staged under `release-linux/` and contains Python source, the
+pinned requirements, shell scripts, this README, and a non-secret
+`deployment.json` containing the server URL. It contains no `config.json`,
+`.env`, credentials, Python bytecode, macOS metadata, or Windows artifacts.
+
+### Linux install and autostart
+
+From `release-linux/`, run:
+
+```bash
+./install.sh
+```
+
+The installer creates a user-level virtual environment, installs the pinned
+requirements, copies the Agent to:
+
+```text
+~/.local/share/elegant-solution/agent/
+```
+
+It creates the XDG autostart entry:
+
+```text
+~/.config/autostart/elegant-solution-agent.desktop
+```
+
+The Agent starts immediately when a graphical session is available and starts
+automatically at the next graphical login otherwise. Existing machine
+configuration is never copied.
+
+Linux configuration and logs use:
+
+```text
+~/.config/elegant-solution/agent/config.json
+~/.local/state/elegant-solution/agent/logs/ElegantAgent.log
+```
+
+### Linux first run and uninstall
+
+The first run uses the same six-digit administrator-issued Activation Code as
+Windows. The installed release supplies the server URL, and the Agent detects
+the host name and platform itself; no normal user enters a URL, room code,
+machine code, or registration secret.
+
+Run this as the same user to uninstall and enter the server-issued
+`UNINSTALL_AGENT` Maintenance Code:
+
+```bash
+./uninstall.sh
+```
+
+It stops only the Agent installed for that user, removes the autostart entry,
+removes the Agent configuration/API key and logs, and removes only the Agent's
+installation directories.
+
+The Linux pilot is user-level rather than tamper-resistant: a user who owns the
+installation files can technically delete them manually. Full tamper
+resistance requires a future system-managed service and is intentionally out
+of scope for this pilot.
+
+### Linux troubleshooting
+
+- If installation stops at Tkinter or venv validation, install `python3-tk`
+  and `python3-venv` with apt.
+- If X11 capability is unavailable, verify `DISPLAY` and that `python-xlib`
+  installed in the Agent virtual environment.
+- On Wayland, unavailable active-window fields are expected for this pilot.
+- If the Agent is online but no tray icon appears, inspect the log and use the
+  PID-file `SIGTERM` method or `uninstall.sh` to stop it.
+- If autostart does not run, verify the desktop file and the session's XDG
+  autostart support.
+
+## Troubleshooting
+
+- If `build.bat` cannot find Python 3, install Python 3 and retry.
+- If `setup.bat` cannot find the executable, build first and keep `dist` beside
+  `setup.bat`.
+- If activation fails, verify the deployment server URL, network access, the
+  fresh six-digit activation code, and the server Agent database migration.
+- If login fails, verify that the user account is approved, has a password, and
+  has a current entitlement for the configured room.
+- If tracking lacks window titles, confirm that the pinned Windows dependency
+  set installed successfully and review the log.
+- If the Agent does not return after reboot, check Task Scheduler for
+  `ElegantSolutionsAgent` and verify that the installed executable still
+  exists at the fixed path.
+
+Windows Service conversion, a privileged Linux daemon, OS logout/account
+locking, and application termination remain post-pilot hardening items.
