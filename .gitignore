@@ -10,6 +10,7 @@ Thumbs.db
 .env
 .env.*
 !.env.example
+!.env.pilot.example
 
 # Python
 __pycache__/
@@ -17,3 +18,19 @@ __pycache__/
 .venv/
 
 /agent/config.json
+/agent/deployment.json
+
+# Agent build/release output and local runtime data
+/agent/build/
+/agent/dist/
+/agent/release/
+/agent/release-linux/
+/agent/logs/
+/agent/*.spec
+/agent/*.exe
+/agent/*.msi
+/agent/*.msix
+/agent/*.zip
+
+# Local database backups contain environment-specific data
+/backups/

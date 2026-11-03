@@ -1,0 +1,80 @@
+name: elegant-solution-pilot
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-elegant}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env.pilot}
+      POSTGRES_DB: ${POSTGRES_DB:-elegant_solutions}
+      TZ: ${TZ:-Asia/Bangkok}
+      PGTZ: ${TZ:-Asia/Bangkok}
+    volumes:
+      - pilot_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+    networks: [pilot]
+
+  face-ai:
+    build:
+      context: ./ai-service
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    environment:
+      FACE_MODEL: buffalo_l
+      MODEL_ROOT: /opt/insightface
+      FACE_THRESHOLD: ${FACE_THRESHOLD:-0.40}
+      TZ: ${TZ:-Asia/Bangkok}
+      OMP_NUM_THREADS: ${FACE_AI_OMP_THREADS:-2}
+      ONNXRUNTIME_NUM_THREADS: ${FACE_AI_ORT_THREADS:-2}
+    stop_grace_period: 30s
+    healthcheck:
+      test: ["CMD", "python", "-c", "import json,sys,urllib.request; d=json.load(urllib.request.urlopen('http://127.0.0.1:8000/health',timeout=3)); sys.exit(0 if d.get('status') == 'healthy' and d.get('model_loaded') is True else 1)"]
+      interval: 10s
+      timeout: 5s
+      start_period: 120s
+      retries: 12
+    networks: [pilot]
+
+  web:
+    build:
+      context: ./web
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-elegant}:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env.pilot}@postgres:5432/${POSTGRES_DB:-elegant_solutions}?schema=public
+      AUTH_SECRET: ${AUTH_SECRET:?Set AUTH_SECRET in .env.pilot}
+      AUTH_URL: ${AUTH_URL:?Set AUTH_URL in .env.pilot}
+      AI_SERVICE_URL: http://face-ai:8000
+      APP_ENVIRONMENT: ${APP_ENVIRONMENT:-pilot}
+      TZ: ${TZ:-Asia/Bangkok}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+    ports:
+      - "127.0.0.1:${WEB_PORT:-3000}:3000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      # Web can start while Face AI is still loading; diagnostics will report
+      # it as unavailable/degraded until its model-aware healthcheck is ready.
+      face-ai:
+        condition: service_started
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/api/liveness').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      start_period: 30s
+      retries: 12
+    stop_grace_period: 30s
+    networks: [pilot]
+
+networks:
+  pilot:
+    driver: bridge
+
+volumes:
+  pilot_postgres_data:

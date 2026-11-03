@@ -36,8 +36,13 @@ async def lifespan(app: FastAPI):
     """Load InsightFace model on startup."""
     global face_app
     logger.info("Loading InsightFace model '%s' …", MODEL_NAME)
-    face_app = FaceAnalysis(name=MODEL_NAME, root=MODEL_ROOT, providers=["CPUExecutionProvider"])
-    face_app.prepare(ctx_id=-1, det_size=(640, 640))
+    try:
+        face_app = FaceAnalysis(name=MODEL_NAME, root=MODEL_ROOT, providers=["CPUExecutionProvider"])
+        face_app.prepare(ctx_id=-1, det_size=(640, 640))
+    except Exception as exc:
+        face_app = None
+        logger.error("InsightFace model initialization failed: %s", type(exc).__name__)
+        raise
     logger.info("InsightFace model ready ✓")
     yield
     face_app = None
