@@ -19,11 +19,8 @@ export function AdminSidebar() {
   const pathname = usePathname();
   const { data: session } = useSession();
   const [desktopCollapsed, setDesktopCollapsed] = useState(false);
-  const [mobileOpen, setMobileOpen] = useState(false);
-
-  useEffect(() => {
-    setMobileOpen(false);
-  }, [pathname]);
+  const [mobileOpenPath, setMobileOpenPath] = useState<string | null>(null);
+  const mobileOpen = mobileOpenPath === pathname;
 
   useEffect(() => {
     if (!mobileOpen) {
@@ -41,7 +38,7 @@ export function AdminSidebar() {
     <>
       <div className="fixed inset-x-0 top-0 z-30 flex h-14 items-center justify-between border-b bg-white/95 px-3 backdrop-blur md:hidden">
         <button
-          onClick={() => setMobileOpen(true)}
+          onClick={() => setMobileOpenPath(pathname)}
           className="rounded-lg border bg-white p-2 text-gray-700 shadow-sm"
           aria-label="เปิดเมนูผู้ดูแลระบบ"
         >
@@ -55,7 +52,7 @@ export function AdminSidebar() {
         <button
           type="button"
           className="fixed inset-0 z-40 bg-black/45 backdrop-blur-[1px] md:hidden"
-          onClick={() => setMobileOpen(false)}
+          onClick={() => setMobileOpenPath(null)}
           aria-label="ปิดเมนูผู้ดูแลระบบ"
         />
       )}
@@ -87,7 +84,7 @@ export function AdminSidebar() {
               )}
             </button>
             <button
-              onClick={() => setMobileOpen(false)}
+              onClick={() => setMobileOpenPath(null)}
               className="rounded-lg p-1.5 hover:bg-gray-100 md:hidden"
               aria-label="ปิดเมนูผู้ดูแลระบบ"
             >
