@@ -9,6 +9,7 @@ import {
   Activity,
   SlidersHorizontal,
   LineChart,
+  HeartPulse,
   ClipboardCheck,
   LucideIcon,
 } from "lucide-react";
@@ -28,6 +29,7 @@ export const adminLinks: AdminNavLink[] = [
   { href: "/admin/calendar", label: "ตารางจองห้อง", icon: CalendarDays },
   { href: "/admin/schedule", label: "นำเข้าตารางเรียน", icon: Upload },
   { href: "/admin/tracking", label: "ติดตามการใช้งาน", icon: Activity },
+  { href: "/admin/diagnostics", label: "System Health", icon: HeartPulse },
   {
     href: "/admin/system",
     label: "ควบคุมระบบ",

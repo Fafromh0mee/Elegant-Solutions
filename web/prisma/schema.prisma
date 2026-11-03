@@ -107,6 +107,10 @@ model User {
   faceProfile           FaceProfile?
   classSchedules        ClassSchedule[]
   agentLogs             AgentLog[]
+  agentSessions         AgentSession[]
+  maintenanceCodes      AgentMaintenanceCode[]
+  activationCodes       AgentActivationCode[]
+  agentAuditEvents      AgentAuditEvent[]
   roomBookings          RoomBooking[]            @relation("BookingRequester")
   bookingDecisions      RoomBooking[]            @relation("BookingDecider")
   roomClosures          RoomClosure[]            @relation("ClosureCreator")
@@ -147,6 +151,9 @@ model Room {
   logs                Log[]
   classSchedules      ClassSchedule[]
   agentMachines       AgentMachine[]
+  agentSessions       AgentSession[]
+  activationCodes     AgentActivationCode[]
+  agentMachineSequence AgentMachineSequence?
   bookings            RoomBooking[]
   closures            RoomClosure[]
   availabilityWindows RoomAvailabilityWindow[]
@@ -292,6 +299,8 @@ model AgentMachine {
   machineCode String    @unique
   hostname    String
   roomId      String?
+  platform    String?
+  agentVersion String?
   apiKey      String    @unique @default(cuid())
   lastSeen    DateTime?
   isActive    Boolean   @default(true)
@@ -299,8 +308,99 @@ model AgentMachine {
 
   room      Room?      @relation(fields: [roomId], references: [id], onDelete: SetNull)
   agentLogs AgentLog[]
+  agentSessions AgentSession[]
+  maintenanceCodes AgentMaintenanceCode[]
+  agentAuditEvents AgentAuditEvent[]
 
   @@map("agent_machines")
+}
+
+model AgentSession {
+  id        String   @id @default(cuid())
+  tokenHash String   @unique
+  userId    String
+  machineId String
+  roomId    String
+  issuedAt  DateTime @default(now())
+  expiresAt DateTime
+  revokedAt DateTime?
+  status    String   @default("ACTIVE")
+
+  user    User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  machine AgentMachine @relation(fields: [machineId], references: [id], onDelete: Cascade)
+  room   Room          @relation(fields: [roomId], references: [id], onDelete: Cascade)
+
+  @@index([machineId, status, expiresAt])
+  @@index([userId, machineId, status])
+  @@map("agent_sessions")
+}
+
+model AgentMaintenanceCode {
+  id          String   @id @default(cuid())
+  codeHash    String   @unique
+  machineId   String
+  action      String
+  createdById String
+  createdAt   DateTime @default(now())
+  expiresAt   DateTime
+  usedAt      DateTime?
+
+  machine   AgentMachine @relation(fields: [machineId], references: [id], onDelete: Cascade)
+  createdBy User         @relation(fields: [createdById], references: [id], onDelete: Restrict)
+  auditEvents AgentAuditEvent[]
+
+  @@index([machineId, action, expiresAt])
+  @@map("agent_maintenance_codes")
+}
+
+model AgentActivationCode {
+  id                  String   @id @default(cuid())
+  codeHash            String   @unique
+  roomId              String
+  reservedMachineCode String   @unique
+  createdById         String
+  createdAt           DateTime @default(now())
+  expiresAt           DateTime
+  consumedAt          DateTime?
+  revokedAt           DateTime?
+
+  room      Room  @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  createdBy User  @relation(fields: [createdById], references: [id], onDelete: Restrict)
+  auditEvents AgentAuditEvent[]
+
+  @@index([roomId, expiresAt])
+  @@map("agent_activation_codes")
+}
+
+model AgentMachineSequence {
+  id               String   @id @default(cuid())
+  roomId           String   @unique
+  lastIssuedNumber Int      @default(0)
+  updatedAt        DateTime @updatedAt
+
+  room Room @relation(fields: [roomId], references: [id], onDelete: Cascade)
+
+  @@map("agent_machine_sequences")
+}
+
+model AgentAuditEvent {
+  id                 String   @id @default(cuid())
+  event              String
+  machineId          String?
+  userId             String?
+  maintenanceCodeId  String?
+  activationCodeId   String?
+  details            String?
+  createdAt          DateTime @default(now())
+
+  machine         AgentMachine?          @relation(fields: [machineId], references: [id], onDelete: SetNull)
+  user            User?                 @relation(fields: [userId], references: [id], onDelete: SetNull)
+  maintenanceCode AgentMaintenanceCode? @relation(fields: [maintenanceCodeId], references: [id], onDelete: SetNull)
+  activationCode  AgentActivationCode?  @relation(fields: [activationCodeId], references: [id], onDelete: SetNull)
+
+  @@index([machineId, createdAt])
+  @@index([event, createdAt])
+  @@map("agent_audit_events")
 }
 
 model AgentLog {

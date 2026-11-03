@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { isAdminRole } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
+import { isAgentOnline } from "@/lib/agent-health";
 
 export async function GET() {
   const session = await auth();
@@ -9,35 +10,54 @@ export async function GET() {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const machines = await prisma.agentMachine.findMany({
-    where: { isActive: true },
-    include: {
-      room: { select: { roomCode: true, name: true } },
-      agentLogs: {
-        orderBy: { createdAt: "desc" },
-        take: 1,
-        include: {
-          user: { select: { name: true, email: true } },
+  const now = new Date();
+  const [machines, pendingActivations] = await Promise.all([
+    prisma.agentMachine.findMany({
+      include: {
+        room: { select: { roomCode: true, name: true } },
+        agentSessions: {
+          where: { status: "ACTIVE", revokedAt: null, expiresAt: { gt: now } },
+          orderBy: { expiresAt: "desc" },
+          take: 1,
+          include: { user: { select: { name: true, email: true } } },
+        },
+        agentLogs: {
+          orderBy: { createdAt: "desc" },
+          take: 1,
+          include: {
+            user: { select: { name: true, email: true } },
+          },
         },
       },
-    },
-    orderBy: { machineCode: "asc" },
-  });
-
-  const onlineThreshold = new Date(Date.now() - 30 * 1000);
+      orderBy: [{ room: { roomCode: "asc" } }, { machineCode: "asc" }],
+    }),
+    prisma.agentActivationCode.findMany({
+      where: {
+        consumedAt: null,
+        revokedAt: null,
+        expiresAt: { gt: now },
+      },
+      include: { room: { select: { roomCode: true, name: true } } },
+      orderBy: [{ room: { roomCode: "asc" } }, { createdAt: "asc" }],
+    }),
+  ]);
 
   const result = machines.map((m) => {
     const latest = m.agentLogs[0] ?? null;
-    const isOnline = m.lastSeen ? m.lastSeen > onlineThreshold : false;
+    const currentSession = m.agentSessions[0] ?? null;
+    const isOnline = isAgentOnline(m, now);
 
     return {
       id: m.id,
       machineCode: m.machineCode,
       hostname: m.hostname,
+      platform: m.platform,
+      isActive: m.isActive,
       room: m.room,
       isOnline,
       lastSeen: m.lastSeen?.toISOString() ?? null,
-      currentUser: latest?.user ?? null,
+      currentUser: currentSession?.user ?? null,
+      sessionExpiresAt: currentSession?.expiresAt.toISOString() ?? null,
       activeApp: latest?.activeApp ?? null,
       activeTitle: latest?.activeTitle ?? null,
       riskLevel: latest?.riskLevel ?? "NORMAL",
@@ -63,5 +83,12 @@ export async function GET() {
       activeRooms,
       watchAlerts: watchCount,
     },
+    pendingActivations: pendingActivations.map((activation) => ({
+      id: activation.id,
+      roomCode: activation.room.roomCode,
+      roomName: activation.room.name,
+      reservedMachineCode: activation.reservedMachineCode,
+      expiresAt: activation.expiresAt.toISOString(),
+    })),
   });
 }

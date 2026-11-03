@@ -1,7 +1,10 @@
 import { TrackingClient } from "./tracking-client";
-import { getBlacklistAction } from "@/actions/agent";
+import { getActivationRoomsAction, getBlacklistAction } from "@/actions/agent";
 
 export default async function AdminTrackingPage() {
-  const blacklist = await getBlacklistAction();
-  return <TrackingClient initialBlacklist={blacklist} />;
+  const [blacklist, activationRooms] = await Promise.all([
+    getBlacklistAction(),
+    getActivationRoomsAction(),
+  ]);
+  return <TrackingClient initialBlacklist={blacklist} activationRooms={activationRooms} />;
 }

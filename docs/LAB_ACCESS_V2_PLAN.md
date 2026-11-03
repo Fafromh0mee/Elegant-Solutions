@@ -649,3 +649,17 @@ Do not:
 
 If implementation reveals a requirement conflict, stop and report it before
 making a major design decision.
+
+# 22.Exit policy is configurable per room.
+
+Normal rooms:
+
+- users may exit without an explicit checkout
+- session may end automatically
+
+Sensitive/high-value rooms:
+
+- verified checkout may be required for audit purposes
+- failure to verify exit must never physically prevent a user from leaving
+
+Physical exit safety is independent from Elegant access authorization.

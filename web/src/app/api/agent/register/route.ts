@@ -7,14 +7,14 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  let body: { machineCode: string; hostname: string; roomCode?: string };
+  let body: { machineCode: string; hostname: string; roomCode?: string; platform?: string };
   try {
     body = await req.json();
   } catch {
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
   }
 
-  const { machineCode, hostname, roomCode } = body;
+  const { machineCode, hostname, roomCode, platform } = body;
   if (!machineCode || !hostname) {
     return NextResponse.json(
       { error: "machineCode and hostname are required" },
@@ -33,8 +33,8 @@ export async function POST(req: NextRequest) {
 
   const machine = await prisma.agentMachine.upsert({
     where: { machineCode },
-    update: { hostname, roomId: roomId ?? null, isActive: true },
-    create: { machineCode, hostname, roomId: roomId ?? null },
+    update: { hostname, platform: platform ?? null, roomId: roomId ?? null, isActive: true },
+    create: { machineCode, hostname, platform: platform ?? null, roomId: roomId ?? null },
   });
 
   return NextResponse.json({

@@ -3,7 +3,6 @@
 import React, { useState, useTransition } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
-  Activity,
   AlertTriangle,
   ChevronDown,
   ChevronUp,
@@ -19,6 +18,9 @@ import {
 import { getRiskLevelLabel } from "@/lib/ui-terms";
 import {
   addBlacklistAction,
+  cancelActivationCodeAction,
+  createActivationCodeAction,
+  createMaintenanceCodeAction,
   removeBlacklistAction,
   updateBlacklistAction,
 } from "@/actions/agent";
@@ -29,6 +31,8 @@ type SnapshotMachine = {
   machineCode: string;
   hostname: string;
   room: { roomCode: string; name: string } | null;
+  platform: string | null;
+  isActive: boolean;
   isOnline: boolean;
   lastSeen: string | null;
   currentUser: { name: string; email: string } | null;
@@ -36,6 +40,7 @@ type SnapshotMachine = {
   activeTitle: string | null;
   riskLevel: string;
   loggedSince: string | null;
+  sessionExpiresAt: string | null;
 };
 
 type Snapshot = {
@@ -46,7 +51,24 @@ type Snapshot = {
     activeRooms: number;
     watchAlerts: number;
   };
+  pendingActivations: PendingActivation[];
 };
+
+type ActivationRoom = {
+  id: string;
+  roomCode: string;
+  name: string;
+};
+
+type PendingActivation = {
+  id: string;
+  roomCode: string;
+  roomName: string;
+  reservedMachineCode: string;
+  expiresAt: string;
+};
+
+type RevealedActivation = PendingActivation & { code: string };
 
 type BlacklistItem = {
   id: string;
@@ -63,16 +85,23 @@ async function fetchSnapshot(): Promise<Snapshot> {
 
 export function TrackingClient({
   initialBlacklist,
+  activationRooms,
 }: {
   initialBlacklist: BlacklistItem[];
+  activationRooms: ActivationRoom[];
 }) {
   const [blacklist, setBlacklist] = useState(initialBlacklist);
   const [expandedMachine, setExpandedMachine] = useState<string | null>(null);
   const [newPattern, setNewPattern] = useState("");
   const [blacklistError, setBlacklistError] = useState("");
+  const [maintenanceAction, setMaintenanceAction] = useState<Record<string, string>>({});
+  const [maintenanceCodes, setMaintenanceCodes] = useState<Record<string, { code: string; expiresAt: string; action: string }>>({});
+  const [activationRoomId, setActivationRoomId] = useState(activationRooms[0]?.id ?? "");
+  const [activationError, setActivationError] = useState("");
+  const [revealedActivation, setRevealedActivation] = useState<RevealedActivation | null>(null);
   const [isPending, startTransition] = useTransition();
 
-  const { data, isLoading, dataUpdatedAt, refetch, isRefetching } = useQuery({
+  const { data, isLoading, refetch, isRefetching } = useQuery({
     queryKey: ["tracking-snapshot"],
     queryFn: fetchSnapshot,
     refetchInterval: 5000,
@@ -87,8 +116,42 @@ export function TrackingClient({
   };
 
   const machines = data?.machines ?? [];
+  const pendingActivations = data?.pendingActivations ?? [];
 
-  const lastUpdated = dataUpdatedAt ? new Date(dataUpdatedAt) : null;
+  function handleCreateActivationCode() {
+    if (!activationRoomId) return;
+    setActivationError("");
+    startTransition(async () => {
+      const result = await createActivationCodeAction(activationRoomId);
+      if ("error" in result) {
+        setActivationError(result.error ?? "สร้างรหัสเปิดใช้งานไม่สำเร็จ");
+        return;
+      }
+      const room = activationRooms.find((candidate) => candidate.id === activationRoomId);
+      setRevealedActivation({
+        id: result.id,
+        code: result.code,
+        roomCode: result.roomCode,
+        roomName: room?.name ?? "",
+        reservedMachineCode: result.machineCode,
+        expiresAt: new Date(result.expiresAt).toISOString(),
+      });
+      void refetch();
+    });
+  }
+
+  function handleCancelActivationCode(id: string) {
+    setActivationError("");
+    startTransition(async () => {
+      const result = await cancelActivationCodeAction(id);
+      if ("error" in result) {
+        setActivationError(result.error ?? "ยกเลิกรหัสเปิดใช้งานไม่สำเร็จ");
+        return;
+      }
+      if (revealedActivation?.id === id) setRevealedActivation(null);
+      void refetch();
+    });
+  }
 
   function handleAddBlacklist() {
     if (!newPattern.trim()) return;
@@ -131,6 +194,18 @@ export function TrackingClient({
       setBlacklist((prev) =>
         prev.map((b) => (b.id === id ? { ...b, isActive: !current } : b)),
       );
+    });
+  }
+
+  function handleGenerateMaintenanceCode(machineId: string) {
+    const action = maintenanceAction[machineId] ?? "ENTER_MAINTENANCE";
+    startTransition(async () => {
+      const result = await createMaintenanceCodeAction(machineId, action);
+      if ("error" in result || !result.code || !result.expiresAt) return;
+      setMaintenanceCodes((prev) => ({
+        ...prev,
+        [machineId]: { code: result.code, expiresAt: result.expiresAt.toISOString(), action },
+      }));
     });
   }
 
@@ -183,9 +258,81 @@ export function TrackingClient({
         />
       </div>
 
+      {/* Computer activation */}
+      <div className="card">
+        <h2 className="font-semibold mb-2">เพิ่มคอมพิวเตอร์</h2>
+        <p className="text-sm text-gray-500 mb-4">
+          เลือกห้อง แล้วส่งรหัสเปิดใช้งานแบบใช้ครั้งเดียวให้ผู้ติดตั้งภายใน 10 นาที
+        </p>
+        <div className="flex flex-wrap items-center gap-3">
+          <select
+            className="input w-auto min-w-56"
+            value={activationRoomId}
+            onChange={(event) => setActivationRoomId(event.target.value)}
+            disabled={activationRooms.length === 0 || isPending}
+          >
+            {activationRooms.length === 0 ? (
+              <option value="">ไม่มีห้องที่พร้อมใช้งาน</option>
+            ) : (
+              activationRooms.map((room) => (
+                <option key={room.id} value={room.id}>
+                  {room.roomCode} — {room.name}
+                </option>
+              ))
+            )}
+          </select>
+          <button
+            className="btn-primary"
+            onClick={handleCreateActivationCode}
+            disabled={isPending || !activationRoomId}
+          >
+            <Plus className="h-4 w-4" />
+            สร้างรหัสเปิดใช้งาน
+          </button>
+        </div>
+        {activationError && <p className="mt-3 text-sm text-red-500">{activationError}</p>}
+        {revealedActivation && (
+          <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-4">
+            <p className="font-medium">ส่งรหัสนี้ให้ผู้ติดตั้งตอนนี้ — จะแสดงเพียงครั้งเดียว</p>
+            <p className="mt-2 font-mono text-3xl font-bold tracking-[0.25em]">{revealedActivation.code}</p>
+            <p className="mt-2 text-sm text-gray-600">
+              {revealedActivation.reservedMachineCode} · {revealedActivation.roomCode} — {revealedActivation.roomName} · หมดอายุ {new Date(revealedActivation.expiresAt).toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" })}
+            </p>
+            <button
+              className="btn-secondary mt-3"
+              onClick={() => handleCancelActivationCode(revealedActivation.id)}
+              disabled={isPending}
+            >
+              ยกเลิกรหัสนี้
+            </button>
+          </div>
+        )}
+        <div className="mt-4">
+          <h3 className="text-sm font-medium">รอการเปิดใช้งาน</h3>
+          {pendingActivations.length === 0 ? (
+            <p className="mt-2 text-sm text-gray-400">ไม่มีรหัสที่รอการใช้งาน</p>
+          ) : (
+            <div className="mt-2 space-y-2">
+              {pendingActivations.map((activation) => (
+                <div key={activation.id} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border px-3 py-2 text-sm">
+                  <span>
+                    <span className="font-medium">{activation.reservedMachineCode}</span>
+                    <span className="text-gray-500"> · {activation.roomCode} — {activation.roomName} · หมดอายุ {new Date(activation.expiresAt).toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" })}</span>
+                  </span>
+                  <button className="text-sm text-red-600 hover:underline" onClick={() => handleCancelActivationCode(activation.id)} disabled={isPending}>
+                    ยกเลิก
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+
       {/* Machine Table */}
       <div className="card overflow-x-auto">
-        <h2 className="font-semibold mb-4">เครื่องคอมพิวเตอร์ทั้งหมด</h2>
+        <h2 className="font-semibold mb-1">เครื่องคอมพิวเตอร์ทั้งหมด</h2>
+        <p className="mb-4 text-sm text-gray-500">เรียงตามห้องและหมายเลขเครื่อง</p>
         {isLoading ? (
           <p className="text-sm text-gray-500 py-6 text-center">
             กำลังโหลดข้อมูล...
@@ -203,6 +350,7 @@ export function TrackingClient({
                 <th className="pb-3 pr-4">ผู้ใช้</th>
                 <th className="pb-3 pr-4">แอป / หัวข้อ</th>
                 <th className="pb-3 pr-4">เริ่มใช้</th>
+                <th className="pb-3 pr-4">สิทธิ์ถึง</th>
                 <th className="pb-3 pr-4">Risk</th>
                 <th className="pb-3">Log</th>
               </tr>
@@ -226,7 +374,7 @@ export function TrackingClient({
                     </td>
                     <td className="py-3 pr-4">
                       <p className="font-medium text-gray-900">
-                        {m.machineCode}
+                        {m.machineCode}{!m.isActive && " (inactive)"}
                       </p>
                       <p className="text-xs text-gray-400">
                         {m.room?.roomCode
@@ -272,6 +420,11 @@ export function TrackingClient({
                           })
                         : "—"}
                     </td>
+                    <td className="py-3 pr-4 text-xs text-gray-500">
+                      {m.sessionExpiresAt
+                        ? new Date(m.sessionExpiresAt).toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" })
+                        : "—"}
+                    </td>
                     <td className="py-3 pr-4">
                       <span
                         className={
@@ -303,7 +456,7 @@ export function TrackingClient({
                   </tr>
                   {expandedMachine === m.id && (
                     <tr className="bg-gray-50">
-                      <td colSpan={7} className="px-4 pb-4">
+                      <td colSpan={8} className="px-4 pb-4">
                         <LogHistoryDropdown machineId={m.id} />
                       </td>
                     </tr>
@@ -313,6 +466,49 @@ export function TrackingClient({
             </tbody>
           </table>
         )}
+      </div>
+
+      {/* Maintenance codes */}
+      <div className="card">
+        <h2 className="font-semibold mb-2">Administrator Maintenance</h2>
+        <p className="text-sm text-gray-500 mb-4">
+          รหัสใช้ได้ 5 นาที ใช้ได้ครั้งเดียว และผูกกับเครื่องกับการดำเนินการที่เลือก
+        </p>
+        <div className="space-y-3">
+          {machines.map((machine) => {
+            const code = maintenanceCodes[machine.id];
+            return (
+              <div key={machine.id} className="flex flex-wrap items-center gap-3 rounded-lg border px-3 py-3">
+                <div className="min-w-48">
+                  <p className="font-medium">{machine.machineCode}</p>
+                  <p className="text-xs text-gray-400">{machine.hostname} · {machine.platform ?? "ไม่ระบุ OS"}</p>
+                </div>
+                <select
+                  className="input w-auto"
+                  value={maintenanceAction[machine.id] ?? "ENTER_MAINTENANCE"}
+                  onChange={(event) => setMaintenanceAction((prev) => ({ ...prev, [machine.id]: event.target.value }))}
+                  disabled={!machine.isActive}
+                >
+                  <option value="ENTER_MAINTENANCE">เข้าโหมดบำรุงรักษา</option>
+                  <option value="RESTART_AGENT">รีสตาร์ต Agent</option>
+                  <option value="UNINSTALL_AGENT">ถอนการติดตั้ง Agent</option>
+                </select>
+                <button
+                  className="btn-secondary"
+                  onClick={() => handleGenerateMaintenanceCode(machine.id)}
+                  disabled={isPending || !machine.isActive}
+                >
+                  สร้างรหัส
+                </button>
+                {code && (
+                  <span className="rounded bg-slate-100 px-3 py-2 font-mono text-lg tracking-widest">
+                    {code.code} <span className="text-xs font-sans tracking-normal text-gray-500">({code.action})</span>
+                  </span>
+                )}
+              </div>
+            );
+          })}
+        </div>
       </div>
 
       {/* Blacklist Manager */}
