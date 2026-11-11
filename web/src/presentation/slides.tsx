@@ -25,7 +25,36 @@ function Label({ icon: Icon, title, detail }: { icon: LucideIcon; title: string;
 function Arrow() { return <ChevronRight className="final-arrow" size={25} strokeWidth={1.8} aria-hidden="true"/>; }
 function Step({ n, title, detail }: { n: string; title: string; detail: string }) { return <div className="final-step"><span>{n}</span><div><strong>{title}</strong><small>{detail}</small></div></div>; }
 
-function Cover() { return <div className="final-cover"><div className="final-cover-top"><BrandMark size={59}/><span>โครงงานจบ / การนำเสนอผลงาน</span></div><div className="final-cover-body"><small>สิทธิ์เข้าห้อง · จัดการพื้นที่ · ติดตามเครื่อง</small><h1>Elegant<br/><em>Solution</em></h1><p>ระบบบริหารห้องปฏิบัติการ สิทธิ์เข้าใช้<br/>และสถานะคอมพิวเตอร์ในระบบเดียว</p></div><div className="final-cover-bottom"><span>เวอร์ชัน 0.5.0</span><span>12 พฤศจิกายน 2026</span></div><div className="final-cover-monogram" aria-hidden="true">ES<span>05</span></div></div>; }
+function Cover() {
+  const areas = [
+    { icon: CalendarDays, title: "ตารางเรียน" },
+    { icon: Clock3, title: "การจองห้อง" },
+    { icon: KeyRound, title: "สิทธิ์เข้าใช้" },
+    { icon: Monitor, title: "สถานะเครื่อง" },
+  ];
+
+  return <div className="final-cover">
+    <div className="final-cover-top">
+      <span className="final-cover-brand"><BrandMark size={48}/> Elegant Solution</span>
+      <span>โครงงานจบ · การนำเสนอผลงาน</span>
+    </div>
+    <div className="final-cover-body">
+      <div className="final-cover-copy">
+        <small>ระบบบริหารจัดการห้อง LAB อัจฉริยะ</small>
+        <h1>Elegant<br/><em>Solution</em></h1>
+        <p>จัดการห้อง สิทธิ์เข้าใช้ และสถานะคอมพิวเตอร์<br/>บนข้อมูลชุดเดียวกัน</p>
+      </div>
+      <div className="final-cover-visual" aria-label="ภาพแนวคิดองค์ประกอบของระบบ">
+        <span>ภาพรวมระบบ</span>
+        <div className="final-cover-visual-grid">
+          {areas.map(({ icon: Icon, title }) => <div key={title}><Icon size={27} strokeWidth={1.8}/><strong>{title}</strong></div>)}
+        </div>
+        <div className="final-cover-visual-result"><ShieldCheck size={29} strokeWidth={1.8}/><strong>ตรวจสิทธิ์ตามคน ห้อง และเวลา</strong></div>
+      </div>
+    </div>
+    <div className="final-cover-bottom"><span>เวอร์ชัน 0.5.0</span><span>12 พฤศจิกายน 2026</span></div>
+  </div>;
+}
 
 function Background() { const items = [[CalendarDays,"ตารางเรียน"],[Search,"ห้องว่าง"],[Clock3,"การจอง"],[KeyRound,"สิทธิ์เข้าห้อง"],[Monitor,"เครื่อง LAB"]] as const;
   return <Frame chapter="WHY" number={2} title="ข้อมูลห้องอยู่ในหลายขั้นตอน" subtitle="การจัดการ LAB ต้องเชื่อมข้อมูลก่อนตัดสินว่าใครใช้ห้องหรือเครื่องได้"><div className="final-background"><div className="final-fragments">{items.map(([icon,title]) => <Label key={title} icon={icon} title={title}/>)}</div><div className="final-join"><span>เชื่อมข้อมูล</span><Arrow/></div><div className="final-unified"><BrandMark size={52}/><strong>Elegant Solution</strong><p>ตาราง ห้อง สิทธิ์ และการใช้งาน<br/>อ้างอิงข้อมูลชุดเดียวกัน</p></div></div><p className="final-footnote">แนวคิดจากขอบเขตระบบและแผน Lab Access V2 · ไม่มีการอ้างผลสำรวจปัญหาหน้างาน</p></Frame>; }
@@ -34,7 +63,7 @@ function Objectives() { const goals = [["01","จัดการห้องจ�
   return <Frame chapter="WHY" number={3} title="วัตถุประสงค์ของโครงการ" subtitle="เชื่อมการบริหารห้องกับการตรวจสิทธิ์และสถานะคอมพิวเตอร์"><div className="final-objectives">{goals.map(([n,title,detail]) => <div key={n}><span>{n}</span><strong>{title}</strong><small>{detail}</small></div>)}</div><p className="final-callout">ขอบเขตปัจจุบันคือระบบซอฟต์แวร์และ Agent; ยังไม่มีหลักฐานการเชื่อมกลอนประตูจริง</p></Frame>; }
 
 function Roles() { const roles = [{icon:ShieldCheck,code:"SUPER ADMIN",title:"ผู้ดูแลระบบระดับสูง",detail:"กำหนดค่าระบบ จัดการผู้ดูแล และสร้าง Batch Enrollment"},{icon:Users,code:"ADMIN",title:"ผู้ดูแลระบบ",detail:"จัดการผู้ใช้ ห้อง ตารางเรียน การอนุมัติ และติดตามเครื่อง"},{icon:CalendarDays,code:"STUDENT",title:"นักศึกษา",detail:"นำเข้าตาราง ค้นหาและจองห้อง ใช้สิทธิ์ตามเวลา"},{icon:KeyRound,code:"GUEST",title:"ผู้เยี่ยมชม",detail:"ใช้ห้องที่เปิดให้ Guest หลังบัญชีได้รับอนุมัติ"}];
-  return <Frame chapter="WHO" number={4} title="ผู้ใช้ 4 บทบาท" subtitle="หน้าที่ต่างกัน และการกระทำสำคัญตรวจสิทธิ์ที่ backend"><div className="final-roles">{roles.map(({icon:Icon,code,title,detail}) => <div key={code}><Icon size={36} strokeWidth={1.5}/><span>{code}</span><h2>{title}</h2><p>{detail}</p></div>)}</div></Frame>; }
+  return <Frame chapter="WHO" number={4} title="ผู้ใช้ 4 บทบาท" subtitle="หน้าที่ต่างกัน และการกระทำสำคัญตรวจสิทธิ์ที่ backend"><div className="final-roles">{roles.map(({icon:Icon,code,title,detail}) => <div key={code}><span className="final-role-icon"><Icon size={30} strokeWidth={1.7}/></span><span>{code}</span><h2>{title}</h2><p>{detail}</p></div>)}</div></Frame>; }
 
 function Permissions() { const rows: Array<[string,string,string,string,string]> = [["จัดการผู้ใช้ / อนุมัติ Guest","✓","✓","—","—"],["จัดการห้องและตารางเรียน","✓","✓","—","—"],["อนุมัติการจอง","✓","✓","—","—"],["ค้นหา / จองห้อง","ค้นหา","ค้นหา","✓","✓*"],["BU Mobile OCR","—","—","✓","—"],["ลงทะเบียนใบหน้า","✓","✓","✓","—"],["Admin Tracking","✓","✓","—","—"],["System Control / Batch Enrollment","✓","—","—","—"]];
   return <Frame chapter="WHO" number={5} title="สิทธิ์ไม่ได้ขึ้นกับบทบาทอย่างเดียว" subtitle="Guest ต้องได้รับอนุมัติ; การใช้ห้องและ Agent session ต้องมีสิทธิ์ตามเวลาปัจจุบัน"><table className="final-permissions"><thead><tr><th>ความสามารถ</th><th>Super Admin</th><th>Admin</th><th>Student</th><th>Guest</th></tr></thead><tbody>{rows.map(row => <tr key={row[0]}>{row.map((cell,i) => i === 0 ? <th key={i}>{cell}</th> : <td key={i} className={cell.startsWith("✓") ? "allowed" : ""}>{cell}</td>)}</tr>)}</tbody></table><div className="final-table-note"><span>* Guest ที่อนุมัติแล้วเห็นเฉพาะห้องที่เปิดให้ Guest</span><span>Agent login ตรวจบัญชีและ room entitlement อีกครั้ง</span></div></Frame>; }
