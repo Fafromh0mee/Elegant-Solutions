@@ -28,7 +28,7 @@ function nextExistingNumber(roomCode: string, machineCodes: string[]): number {
   return largest + 1;
 }
 
-async function reserveMachineCode(params: {
+export async function reserveMachineCode(params: {
   db: PrismaTypes.TransactionClient;
   roomId: string;
   roomCode: string;

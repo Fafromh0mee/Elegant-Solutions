@@ -3,6 +3,8 @@ import { auth } from "@/lib/auth";
 import { isSuperAdmin } from "@/lib/permissions";
 import { redirect } from "next/navigation";
 import { SystemClient } from "./system-client";
+import { AgentDeploymentPanel } from "./agent-deployment-panel";
+import { getDeploymentOverviewAction } from "@/actions/agent-deployments";
 
 export default async function AdminSystemPage() {
   const session = await auth();
@@ -15,11 +17,13 @@ export default async function AdminSystemPage() {
     redirect("/admin/dashboard");
   }
 
-  return (
+  const deployment = await getDeploymentOverviewAction();
+  return <>
     <SystemClient
       initialMaintenanceMode={data.maintenanceMode}
       adminUsers={data.adminUsers}
       auditLogs={data.auditLogs}
     />
-  );
+    <AgentDeploymentPanel initial={deployment} />
+  </>;
 }

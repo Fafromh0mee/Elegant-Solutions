@@ -200,7 +200,8 @@ describe("persisted Agent lifecycle", () => {
     expect((await heartbeat(agentRequest("/api/agent/heartbeat", {}, loginBody.sessionToken))).status).toBe(401);
     expect((await heartbeat(agentRequest("/api/agent/heartbeat", { activeApp: "Desktop" }))).status).toBe(200);
     const log = await prisma.agentLog.findFirst({ where: { machineId, activeApp: "Desktop" }, orderBy: { createdAt: "desc" } });
-    expect(log?.userId).toBeNull();
+    expect(log).toBeNull();
+    expect((await prisma.agentMachine.findUnique({ where: { id: machineId } }))?.lastSeen).toEqual(bkk("14:20"));
   });
 
   it("extends exactly at a continuous booking boundary and revokes when a gap has no entitlement", async () => {

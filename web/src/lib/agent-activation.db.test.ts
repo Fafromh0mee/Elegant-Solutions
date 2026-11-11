@@ -18,6 +18,11 @@ let secondRoomId = "";
 
 beforeAll(async () => {
   process.env.AUTH_SECRET = "test-auth-secret-for-agent-code-hashing";
+  await prisma.agentActivationThrottle.deleteMany({ where: { key: "global" } });
+  await prisma.agentActivationThrottle.deleteMany({ where: { key: { in: [
+    `ip:${hashActivationCode("ip:127.0.0.1")}`,
+    `ip:${hashActivationCode("ip:10.0.0.1")}`,
+  ] } } });
   const user = await prisma.user.create({
     data: { email: `${RUN.toLowerCase()}@example.test`, name: RUN, role: "ADMIN", status: "APPROVED" },
   });
@@ -49,6 +54,11 @@ afterAll(async () => {
   await prisma.agentMachine.deleteMany({ where: { id: { in: machines.map((machine) => machine.id) } } });
   await prisma.agentActivationCode.deleteMany({ where: { id: { in: codeIds } } });
   await prisma.agentMachineSequence.deleteMany({ where: { roomId: { in: [firstRoomId, secondRoomId] } } });
+  await prisma.agentActivationThrottle.deleteMany({ where: { key: "global" } });
+  await prisma.agentActivationThrottle.deleteMany({ where: { key: { in: [
+    `ip:${hashActivationCode("ip:127.0.0.1")}`,
+    `ip:${hashActivationCode("ip:10.0.0.1")}`,
+  ] } } });
   await prisma.room.deleteMany({ where: { id: { in: [firstRoomId, secondRoomId] } } });
   await prisma.user.delete({ where: { id: userId } });
   await prisma.$disconnect();

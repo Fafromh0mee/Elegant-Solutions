@@ -110,6 +110,7 @@ model User {
   agentSessions         AgentSession[]
   maintenanceCodes      AgentMaintenanceCode[]
   activationCodes       AgentActivationCode[]
+  deploymentBatches     AgentDeploymentBatch[]
   agentAuditEvents      AgentAuditEvent[]
   roomBookings          RoomBooking[]            @relation("BookingRequester")
   bookingDecisions      RoomBooking[]            @relation("BookingDecider")
@@ -153,6 +154,7 @@ model Room {
   agentMachines       AgentMachine[]
   agentSessions       AgentSession[]
   activationCodes     AgentActivationCode[]
+  deploymentBatches   AgentDeploymentBatch[]
   agentMachineSequence AgentMachineSequence?
   bookings            RoomBooking[]
   closures            RoomClosure[]
@@ -363,13 +365,42 @@ model AgentActivationCode {
   expiresAt           DateTime
   consumedAt          DateTime?
   revokedAt           DateTime?
+  batchId             String?
 
   room      Room  @relation(fields: [roomId], references: [id], onDelete: Cascade)
   createdBy User  @relation(fields: [createdById], references: [id], onDelete: Restrict)
+  batch     AgentDeploymentBatch? @relation(fields: [batchId], references: [id], onDelete: SetNull)
   auditEvents AgentAuditEvent[]
 
   @@index([roomId, expiresAt])
+  @@index([batchId])
   @@map("agent_activation_codes")
+}
+
+model AgentDeploymentBatch {
+  id             String   @id @default(cuid())
+  roomId         String
+  requestedCount Int
+  createdById    String
+  createdAt      DateTime @default(now())
+  expiresAt      DateTime
+  revokedAt      DateTime?
+
+  room      Room                  @relation(fields: [roomId], references: [id], onDelete: Restrict)
+  createdBy User                  @relation(fields: [createdById], references: [id], onDelete: Restrict)
+  codes     AgentActivationCode[]
+
+  @@index([createdAt])
+  @@map("agent_deployment_batches")
+}
+
+model AgentActivationThrottle {
+  key             String    @id
+  windowStartedAt DateTime
+  attempts        Int
+  blockedUntil    DateTime?
+
+  @@map("agent_activation_throttles")
 }
 
 model AgentMachineSequence {

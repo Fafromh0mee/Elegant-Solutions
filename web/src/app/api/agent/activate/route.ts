@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { activateMachine } from "@/lib/agent-activation";
-import { checkAgentRateLimit } from "@/lib/agent-rate-limit";
+import { checkDurableActivationThrottle } from "@/lib/agent-activation-throttle";
+import { prisma } from "@/lib/prisma";
 
 const activationErrors = {
   INVALID: "รหัสเปิดใช้งานไม่ถูกต้อง",
@@ -25,8 +26,11 @@ export async function POST(req: NextRequest) {
   }
 
   const address = req.headers.get("x-real-ip")?.trim().slice(0, 64) || "unknown";
-  const rate = checkAgentRateLimit(`activation:${address}`, { limit: 12, windowMs: 60_000 });
+  const rate = await checkDurableActivationThrottle(address);
   if (!rate.allowed) {
+    if (rate.newlyBlocked) {
+      await prisma.agentAuditEvent.create({ data: { event: "ACTIVATION_RATE_LIMITED", details: rate.reason } });
+    }
     return NextResponse.json(
       { error: "ลองเปิดใช้งานบ่อยเกินไป กรุณารอสักครู่" },
       { status: 429, headers: { "Retry-After": String(rate.retryAfterSeconds) } },
