@@ -4,7 +4,7 @@ import { SlideDeck } from "@/presentation/slide-deck";
 import { DECK_SLIDES } from "@/presentation/slides";
 import "@/presentation/presentation.css";
 
-// Progress-update slides, rendered from the product's own components and tokens.
+// Final project slides, rendered from the product's own components and tokens.
 // Presentation-only: available in development, and in a production build only when
 // ENABLE_PRESENTATION=1. Behind the normal login like every non-public route.
 
@@ -12,7 +12,7 @@ import "@/presentation/presentation.css";
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
-  title: "Elegant Solution - Progress Update",
+  title: "Elegant Solution - การนำเสนอโครงงานจบ",
 };
 
 export default function SlidesPage() {

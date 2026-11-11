@@ -106,8 +106,8 @@ export function SlideDeck({ slides }: { slides: DeckSlide[] }) {
       </div>
 
       {showNotes && (
-        <div className="absolute inset-x-4 bottom-16 mx-auto max-w-3xl rounded-xl border bg-white/95 p-4 text-sm leading-relaxed text-gray-800 shadow-sm">
-          <p className="mb-1 text-xs font-medium text-gray-500">Speaker note · {index + 1}/{slides.length}</p>
+        <div className="absolute inset-x-4 bottom-16 mx-auto max-h-[65vh] max-w-3xl overflow-auto rounded-xl border bg-white/95 p-4 text-sm leading-relaxed text-gray-800 shadow-sm">
+          <p className="mb-1 text-xs font-medium text-gray-500">บันทึกผู้บรรยาย · {index + 1}/{slides.length}</p>
           <p className="whitespace-pre-line">{slides[index].notes}</p>
         </div>
       )}
@@ -128,7 +128,7 @@ export function SlideDeck({ slides }: { slides: DeckSlide[] }) {
           type="button"
           className={`rounded-md p-1.5 hover:bg-gray-100 ${showNotes ? "text-(--color-primary)" : ""}`}
           onClick={() => setShowNotes((value) => !value)}
-          aria-label="Speaker notes (N)"
+          aria-label="บันทึกผู้บรรยาย (N)"
         >
           <NotebookText className="h-4 w-4" />
         </button>
