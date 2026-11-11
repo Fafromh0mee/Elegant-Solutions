@@ -1,0 +1,123 @@
+name: Tracking Agent packages
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - feature/cross-platform-tracking-agent-exam
+    paths:
+      - agent/**
+      - .github/workflows/agent-packages.yml
+
+permissions:
+  contents: read
+
+jobs:
+  windows-x64:
+    runs-on: windows-2025
+    env:
+      ELEGANT_SERVER_URL: https://pilot.example.invalid
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install Inno Setup
+        run: choco install innosetup --no-progress -y
+      - name: Build Windows installer
+        shell: cmd
+        working-directory: agent
+        run: build.bat
+      - name: Run Python tests
+        shell: cmd
+        working-directory: agent
+        run: .build-venv-windows\Scripts\python.exe -m unittest discover -v tests
+      - name: Inspect artifact
+        shell: pwsh
+        run: |
+          if (!(Test-Path agent/release/ElegantAgentSetup_0.5.0_x64.exe)) { throw 'Installer missing' }
+          Get-FileHash agent/release/ElegantAgentSetup_0.5.0_x64.exe -Algorithm SHA256
+          if (Get-ChildItem agent/release -Recurse -File | Where-Object { $_.Name -match '^(config\.json|\.env)' }) { throw 'Runtime config in package' }
+      - uses: actions/upload-artifact@v4
+        with:
+          name: elegant-agent-windows-x64
+          path: agent/release/
+          if-no-files-found: error
+
+  linux-amd64:
+    runs-on: ubuntu-22.04
+    env:
+      ELEGANT_SERVER_URL: https://pilot.example.invalid
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install build prerequisites
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y python3-tk python3-venv dpkg-dev
+      - name: Build DEB
+        working-directory: agent
+        run: ./build-linux.sh
+      - name: Run Python tests
+        working-directory: agent
+        run: .build-venv/bin/python -m unittest discover -v tests
+      - name: Inspect package
+        working-directory: agent
+        run: |
+          test -f elegant-agent_0.5.0_amd64.deb
+          dpkg-deb --contents elegant-agent_0.5.0_amd64.deb | tee /tmp/elegant-agent-deb-files.txt
+          grep -q 'elegant-agent.service' /tmp/elegant-agent-deb-files.txt
+          grep -q 'elegant-agent-ui' /tmp/elegant-agent-deb-files.txt
+          ! grep -E 'config\.json|/\.env' /tmp/elegant-agent-deb-files.txt
+          sha256sum elegant-agent_0.5.0_amd64.deb
+      - uses: actions/upload-artifact@v4
+        with:
+          name: elegant-agent-linux-amd64
+          path: |
+            agent/elegant-agent_0.5.0_amd64.deb
+            agent/elegant-agent_0.5.0_amd64.deb.sha256
+          if-no-files-found: error
+
+  macos:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: macos-15
+            arch: arm64
+          - runner: macos-15-intel
+            arch: x86_64
+    runs-on: ${{ matrix.runner }}
+    env:
+      ELEGANT_SERVER_URL: https://pilot.example.invalid
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Build PKG
+        working-directory: agent
+        run: PYTHON_BIN=python3.12 ./build-macos.sh
+      - name: Run Python tests
+        working-directory: agent
+        run: .build-venv-macos/bin/python -m unittest discover -v tests
+      - name: Inspect package
+        working-directory: agent
+        run: |
+          test -f elegant-agent_0.5.0_darwin_${{ matrix.arch }}.pkg
+          pkgutil --payload-files elegant-agent_0.5.0_darwin_${{ matrix.arch }}.pkg | tee /tmp/elegant-agent-pkg-files.txt
+          grep -q 'LaunchDaemons/com.elegantsolution.agent.machine.plist' /tmp/elegant-agent-pkg-files.txt
+          grep -q 'LaunchAgents/com.elegantsolution.agent.session.plist' /tmp/elegant-agent-pkg-files.txt
+          ! grep -E 'config\.json|/\.env' /tmp/elegant-agent-pkg-files.txt
+          shasum -a 256 elegant-agent_0.5.0_darwin_${{ matrix.arch }}.pkg
+          if pkgutil --check-signature elegant-agent_0.5.0_darwin_${{ matrix.arch }}.pkg; then
+            echo 'Signed package'
+          else
+            echo 'Unsigned development package: signing/notarization requires Apple credentials'
+          fi
+      - uses: actions/upload-artifact@v4
+        with:
+          name: elegant-agent-macos-${{ matrix.arch }}
+          path: |
+            agent/elegant-agent_0.5.0_darwin_${{ matrix.arch }}.pkg
+            agent/elegant-agent_0.5.0_darwin_${{ matrix.arch }}.pkg.sha256
+          if-no-files-found: error

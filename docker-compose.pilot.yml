@@ -51,11 +51,14 @@ services:
       AUTH_URL: ${AUTH_URL:?Set AUTH_URL in .env.pilot}
       AI_SERVICE_URL: http://face-ai:8000
       APP_ENVIRONMENT: ${APP_ENVIRONMENT:-pilot}
+      AGENT_INSTALLER_DIR: /app/agent-installers
       TZ: ${TZ:-Asia/Bangkok}
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
       GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
     ports:
       - "127.0.0.1:${WEB_PORT:-3000}:3000"
+    volumes:
+      - ./agent/installers:/app/agent-installers:ro
     depends_on:
       postgres:
         condition: service_healthy
