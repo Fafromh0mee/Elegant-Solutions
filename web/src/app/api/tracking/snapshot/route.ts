@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { isAdminRole } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
-import { isAgentOnline } from "@/lib/agent-health";
+import { currentAgentActivity, isAgentOnline } from "@/lib/agent-health";
 
 export async function GET() {
   const session = await auth();
@@ -46,6 +46,7 @@ export async function GET() {
     const latest = m.agentLogs[0] ?? null;
     const currentSession = m.agentSessions[0] ?? null;
     const isOnline = isAgentOnline(m, now);
+    const currentActivity = currentAgentActivity(isOnline, currentSession, latest);
 
     return {
       id: m.id,
@@ -58,10 +59,10 @@ export async function GET() {
       lastSeen: m.lastSeen?.toISOString() ?? null,
       currentUser: currentSession?.user ?? null,
       sessionExpiresAt: currentSession?.expiresAt.toISOString() ?? null,
-      activeApp: latest?.activeApp ?? null,
-      activeTitle: latest?.activeTitle ?? null,
-      riskLevel: latest?.riskLevel ?? "NORMAL",
-      loggedSince: latest?.createdAt?.toISOString() ?? null,
+      activeApp: currentActivity?.activeApp ?? null,
+      activeTitle: currentActivity?.activeTitle ?? null,
+      riskLevel: currentActivity?.riskLevel ?? "NORMAL",
+      loggedSince: currentActivity?.createdAt.toISOString() ?? null,
     };
   });
 

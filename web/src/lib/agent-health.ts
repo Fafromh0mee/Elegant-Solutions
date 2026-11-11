@@ -11,3 +11,13 @@ export function isAgentOnline(
 ): boolean {
   return machine.isActive && machine.lastSeen !== null && machine.lastSeen > getAgentOnlineThreshold(now);
 }
+
+export function currentAgentActivity<T extends { userId: string | null; createdAt: Date }>(
+  isOnline: boolean,
+  session: { userId: string; issuedAt: Date } | null,
+  latest: T | null,
+): T | null {
+  return isOnline && session && latest && latest.userId === session.userId && latest.createdAt >= session.issuedAt
+    ? latest
+    : null;
+}
