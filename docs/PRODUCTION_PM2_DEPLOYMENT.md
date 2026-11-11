@@ -8,7 +8,7 @@
 
 - Branch สำหรับ release ต้องมี `20260514051539_idk/migration.sql` ที่ SHA-256 เท่ากับ `b8f9b525a16c5f23af233390111e7570938ff42c25f5c10e4114dd73cc21da75`. นี่คือ migration หมายเลข 10 ที่ production ใช้แล้ว; ห้ามเขียนทับ.
 - การซ้อมบน PostgreSQL 16: ฐานข้อมูลใหม่ใช้ครบ 17 migrations และ backup production ที่ restore ใช้ 10 รายการเดิมตามด้วย 7 รายการใหม่. `prisma migrate diff` ต้องไม่มีความต่างกับ `schema.prisma`; user/session/room/Agent machine ต้องคงจำนวนและชุด ID.
-- ตรวจ Node.js ที่เซิร์ฟเวอร์ให้รองรับ Next.js 16 (`>=20.9`), `pnpm`, PM2, พื้นที่ดิสก์ และ **แหล่งของ runtime environment**. คำสั่งด้านล่างใช้ไฟล์ `.env` ของ deployment เดิม; หาก secrets อยู่เฉพาะใน PM2 environment ให้หยุดและออกแบบวิธีส่งต่อ env ก่อน.
+- ตรวจ Node.js ที่เซิร์ฟเวอร์ให้รองรับทั้ง Next.js 16 และ Prisma 7.3 (`^20.19`, `^22.12` หรือ `>=24` ตาม `engines.node` ที่ติดตั้ง), `pnpm`, PM2, พื้นที่ดิสก์ และ **แหล่งของ runtime environment**. คำสั่งด้านล่างใช้ไฟล์ `.env` ของ deployment เดิม; หาก secrets อยู่เฉพาะใน PM2 environment ให้หยุดและออกแบบวิธีส่งต่อ env ก่อน.
 - ตรวจว่าผู้ดูแลยังมี backup ใหม่ที่อ่านได้ พร้อม SHA-256 และทราบวิธีกู้คืน. ไม่พิมพ์ค่า secret, ข้อมูลผู้ใช้ หรือเนื้อหา backup.
 - Production checkout เดิมไม่สะอาด (`web/pnpm-lock.yaml` เปลี่ยน, มีไฟล์ untracked). คำสั่งด้านล่างใช้ Git worktree ใหม่และไม่แก้ checkout เดิม.
 
@@ -19,7 +19,7 @@ ssh lamy@103.216.158.221
 set -euo pipefail
 OLD=/home/lamy/Elegant-Solutions
 test "$(id -un)" = lamy
-node -e 'const [a,b]=process.versions.node.split(".").map(Number); if(a<20 || (a===20 && b<9)) process.exit(1)'
+node -e 'const [a,b]=process.versions.node.split(".").map(Number); if(!((a===20&&b>=19)||(a===22&&b>=12)||a>=24)) process.exit(1)'
 node --version
 pnpm --version
 pm2 --version
@@ -140,13 +140,11 @@ Migrations ใหม่เป็นการเพิ่มตาราง/ค�
 pm2 start pnpm --name elegant-v050-smoke --cwd "$RELEASE/web" -- start --port 3001
 curl --retry 10 --retry-delay 2 --retry-connrefused --fail --silent --show-error http://127.0.0.1:3001/api/liveness
 test "$(curl --silent --output /dev/null --write-out '%{http_code}' http://127.0.0.1:3001/api/agent/activate)" = 405
-test "$(curl --silent --output /dev/null --write-out '%{http_code}' http://127.0.0.1:3001/api/tracking/snapshot)" = 401
-test "$(curl --silent --output /dev/null --write-out '%{http_code}' http://127.0.0.1:3001/api/admin/agent/installers/windows-x64)" = 401
 pm2 stop elegant-v050-smoke
 pm2 delete elegant-v050-smoke
 ```
 
-GET `activate` ควรเป็น 405 เพราะ route รองรับ POST; การตรวจนี้ยังไม่พิสูจน์ activation, auth หรือ dashboard จริง. ต้องตรวจใน browser ด้วยบัญชี Super Admin หลัง cutover.
+GET `activate` ควรเป็น 405 เพราะ route รองรับ POST. การทดสอบ auth ผ่าน `127.0.0.1:3001` อาจไม่ผ่านการตรวจ trusted host ของ Auth.js เพราะ production ใช้โดเมนจริง; ให้ตรวจ auth ผ่านโดเมน HTTPS หลัง cutover. การตรวจนี้ยังไม่พิสูจน์ activation หรือ dashboard จริง.
 
 ## 6. Cutover และตรวจปลายทาง
 
@@ -158,6 +156,8 @@ pm2 stop elegant
 pm2 start pnpm --name elegant-v050 --cwd "$RELEASE/web" -- start --port 3000
 curl --retry 10 --retry-delay 2 --retry-connrefused --fail --silent --show-error http://127.0.0.1:3000/api/liveness
 curl --retry 10 --retry-delay 2 --fail --silent --show-error https://elegant.fafromh0me.com/api/liveness
+test "$(curl --silent --output /dev/null --write-out '%{http_code}' https://elegant.fafromh0me.com/api/tracking/snapshot)" = 401
+test "$(curl --silent --output /dev/null --write-out '%{http_code}' https://elegant.fafromh0me.com/api/admin/agent/installers/windows-x64)" = 401
 pm2 describe elegant-v050
 pm2 save
 ```
