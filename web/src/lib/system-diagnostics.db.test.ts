@@ -15,10 +15,12 @@ let machineId = "";
 let pendingActivationId = "";
 let consumedActivationId = "";
 let previousAiUrl: string | undefined;
+let baselineAgents: Awaited<ReturnType<typeof getSystemDiagnostics>>["agents"];
 
 beforeAll(async () => {
   previousAiUrl = process.env.AI_SERVICE_URL;
   process.env.AI_SERVICE_URL = "";
+  baselineAgents = (await getSystemDiagnostics()).agents;
   const user = await prisma.user.create({
     data: { email: `${RUN.toLowerCase()}@example.test`, name: `${RUN} User`, role: "ADMIN", status: "APPROVED" },
   });
@@ -63,16 +65,20 @@ describe("database-backed system diagnostics", () => {
     const result = await getSystemDiagnostics();
     expect(result.system.database.status).toBe("HEALTHY");
     expect(result.system.faceAi.status).toBe("UNKNOWN");
-    expect(result.agents).toMatchObject({ registered: 1, online: 1, activeSessions: 1 });
-    expect(result.agents.machines[0]).toMatchObject({
+    expect(result.agents).toMatchObject({
+      registered: baselineAgents.registered + 1,
+      online: baselineAgents.online + 1,
+      activeSessions: baselineAgents.activeSessions + 1,
+    });
+    expect(result.agents.machines).toEqual(expect.arrayContaining([expect.objectContaining({
       machineCode: `${RUN}-PC01`,
       hostname: `${RUN}-host`,
       platform: "Linux",
       agentVersion: "0.4.0",
       currentUser: { name: `${RUN} User` },
-    });
-    expect(result.agents.pendingActivations).toHaveLength(1);
-    expect(result.agents.pendingActivations[0].id).toBe(pendingActivationId);
+    })]));
+    expect(result.agents.pendingActivations).toHaveLength(baselineAgents.pendingActivations.length + 1);
+    expect(result.agents.pendingActivations.map((activation) => activation.id)).toContain(pendingActivationId);
     expect(JSON.stringify(result)).not.toContain("codeHash");
   });
 });

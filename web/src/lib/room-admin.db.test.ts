@@ -352,7 +352,7 @@ describe("18. admin room list", () => {
 
     const bookable = await listAdminRooms(filters({ booking: "ENABLED", pageSize: 50 }));
     expect(bookable.rooms.every((room) => room.bookingEnabled)).toBe(true);
-    expect(bookable.rooms.map((room) => room.roomCode)).toEqual(expect.arrayContaining(["LAB-01", "MEETING-A", "MEETING-B"]));
+    expect(bookable.rooms.map((room) => room.id)).toEqual(expect.arrayContaining([roomIds.READY, roomIds.NOWIN]));
   });
 
   it("the SQL health filter agrees with the pure derivation for every room it returns", async () => {
