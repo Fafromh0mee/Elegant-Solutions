@@ -47,7 +47,7 @@ set "ISCC=%ProgramFiles(x86)%\Inno Setup 6\ISCC.exe"
 if not exist "%ISCC%" set "ISCC=ISCC.exe"
 "%ISCC%" setup.iss
 if errorlevel 1 (echo ERROR: Inno Setup 6 is required to build the installer EXE.& exit /b 1)
-%PYTHON% -c "import hashlib,pathlib; p=pathlib.Path('release'); files=[x for x in p.rglob('*') if x.is_file() and x.name!='SHA256SUMS.txt']; (p/'SHA256SUMS.txt').write_text(''.join(hashlib.sha256(x.read_bytes()).hexdigest()+'  '+x.relative_to(p).as_posix()+'\n' for x in sorted(files)),encoding='utf-8')"
+%PYTHON% -c "import hashlib,pathlib; p=pathlib.Path('release'); files=[x for x in p.rglob('*') if x.is_file() and x.name!='SHA256SUMS.txt']; (p/'SHA256SUMS.txt').write_bytes(''.join(hashlib.sha256(x.read_bytes()).hexdigest()+'  '+x.relative_to(p).as_posix()+'\n' for x in sorted(files)).encode('utf-8'))"
 if errorlevel 1 exit /b 1
 echo Built release\ElegantAgentSetup_0.5.0_x64.exe
 endlocal
