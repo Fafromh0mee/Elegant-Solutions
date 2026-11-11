@@ -1,0 +1,11 @@
+#!/bin/sh
+set -e
+launchctl bootout system/com.elegantsolution.agent.machine >/dev/null 2>&1 || true
+console_user="$(stat -f %Su /dev/console)"
+if [ "$console_user" != root ]; then
+    user_id="$(id -u "$console_user" 2>/dev/null || true)"
+    if [ -n "$user_id" ]; then
+        launchctl bootout "gui/$user_id/com.elegantsolution.agent.session" >/dev/null 2>&1 || true
+    fi
+fi
+exit 0

@@ -34,6 +34,8 @@ if _SYSTEM == "Windows":
     from .windows import capability_status, get_active_window  # noqa: F401
 elif _SYSTEM == "Linux":
     from .linux import capability_status, get_active_window  # noqa: F401
+elif _SYSTEM == "Darwin":
+    from .macos import capability_status, get_active_window  # noqa: F401
 else:
     def capability_status() -> str:
         return "unsupported-platform"

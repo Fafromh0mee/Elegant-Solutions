@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=Elegant Solution Agent
+Comment=Lab computer login and activity reporting
+Exec=/usr/lib/elegant-agent/elegant-agent-ui
+TryExec=/usr/lib/elegant-agent/elegant-agent-ui
+Terminal=false
+X-GNOME-Autostart-enabled=true

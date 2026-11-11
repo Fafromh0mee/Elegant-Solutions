@@ -10,6 +10,7 @@ import logging
 import os
 import platform
 import sys
+import tempfile
 from pathlib import Path
 
 logger = logging.getLogger(__name__)
@@ -19,6 +20,8 @@ DEPLOYMENT_FILENAME = "deployment.json"
 APP_DATA_DIR = Path("ElegantSolution") / "Agent"
 LINUX_CONFIG_DIR = Path("elegant-solution") / "agent"
 LINUX_STATE_DIR = Path("elegant-solution") / "agent"
+BRIDGE_HOST = "127.0.0.1"
+BRIDGE_PORT = 18767
 
 _DEFAULTS = {
     "server_url": "",
@@ -30,14 +33,33 @@ _DEFAULTS = {
 
 def _data_dir() -> Path:
     """Return the writable machine-data directory for this execution mode."""
+    if os.environ.get("ELEGANT_AGENT_SERVICE") == "1":
+        system = platform.system()
+        if system == "Darwin":
+            return Path("/Library/Application Support/ElegantSolution/Agent")
+        if system == "Linux":
+            return Path("/var/lib/elegant-agent")
+    if platform.system() == "Darwin":
+        return Path.home() / "Library/Application Support/ElegantSolution/Agent"
+    if platform.system() == "Linux":
+        return _xdg_dir("XDG_CONFIG_HOME", ".config") / LINUX_CONFIG_DIR
     if getattr(sys, "frozen", False):
         program_data = os.environ.get("PROGRAMDATA")
         if program_data:
             return Path(program_data) / APP_DATA_DIR
         return Path(sys.executable).parent
-    if platform.system() == "Linux":
-        return _xdg_dir("XDG_CONFIG_HOME", ".config") / LINUX_CONFIG_DIR
     return Path(__file__).parent.parent
+
+
+def bridge_token_path() -> Path:
+    """A local IPC capability; this file never contains the machine API key."""
+    system = platform.system()
+    if system == "Windows":
+        root = Path(os.environ.get("PROGRAMDATA", r"C:\ProgramData"))
+        return root / "ElegantSolution" / "AgentBridge" / "token"
+    if system == "Darwin":
+        return Path("/Library/Application Support/ElegantSolution/Bridge/token")
+    return Path("/run/elegant-agent/token")
 
 
 def _xdg_dir(variable: str, fallback: str) -> Path:
@@ -83,6 +105,8 @@ def deployment_server_url() -> str:
 
 def log_dir() -> Path:
     """Return the persistent log directory for this execution mode."""
+    if os.environ.get("ELEGANT_AGENT_SERVICE") == "1":
+        return _data_dir() / "logs"
     if platform.system() == "Linux":
         return _xdg_dir("XDG_STATE_HOME", ".local/state") / LINUX_STATE_DIR / "logs"
     return _data_dir() / "logs"
@@ -109,8 +133,16 @@ def save(cfg: dict) -> None:
     path = _config_path()
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
-        with open(path, "w", encoding="utf-8") as f:
-            json.dump(cfg, f, indent=2, ensure_ascii=False)
+        fd, temporary = tempfile.mkstemp(prefix=".config-", dir=path.parent)
+        try:
+            if platform.system() != "Windows":
+                os.fchmod(fd, 0o600)
+            with os.fdopen(fd, "w", encoding="utf-8") as f:
+                json.dump(cfg, f, indent=2, ensure_ascii=False)
+            os.replace(temporary, path)
+        finally:
+            if os.path.exists(temporary):
+                os.unlink(temporary)
     except Exception as exc:
         logger.error("Unable to save Agent configuration (%s)", type(exc).__name__)
         raise

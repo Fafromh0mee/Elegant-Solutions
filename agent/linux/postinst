@@ -1,0 +1,9 @@
+#!/bin/sh
+set -e
+if ! id elegant-agent >/dev/null 2>&1; then
+    useradd --system --home /var/lib/elegant-agent --shell /usr/sbin/nologin elegant-agent
+fi
+install -d -o elegant-agent -g elegant-agent -m 0700 /var/lib/elegant-agent
+systemctl daemon-reload
+systemctl enable --now elegant-agent.service
+exit 0

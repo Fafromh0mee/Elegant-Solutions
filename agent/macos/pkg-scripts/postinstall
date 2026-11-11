@@ -1,0 +1,17 @@
+#!/bin/sh
+set -e
+base='/Library/Application Support/ElegantSolution'
+install -d -o root -g wheel -m 0700 "$base/Agent"
+install -d -o root -g wheel -m 0755 "$base/Bridge"
+chmod 0755 "$base/bin/elegant-agent-service" "$base/bin/elegant-agent-ui"
+launchctl bootstrap system /Library/LaunchDaemons/com.elegantsolution.agent.machine.plist
+launchctl kickstart -k system/com.elegantsolution.agent.machine
+console_user="$(stat -f %Su /dev/console)"
+if [ "$console_user" != root ]; then
+    user_id="$(id -u "$console_user" 2>/dev/null || true)"
+    if [ -n "$user_id" ]; then
+        launchctl bootstrap "gui/$user_id" /Library/LaunchAgents/com.elegantsolution.agent.session.plist >/dev/null 2>&1 || true
+        launchctl kickstart -k "gui/$user_id/com.elegantsolution.agent.session" >/dev/null 2>&1 || true
+    fi
+fi
+exit 0

@@ -65,7 +65,7 @@ def activate_machine(
             except ValueError:
                 return {"error": "เปิดใช้งานไม่สำเร็จ"}
         result = response.json()
-        if not result.get("apiKey") or not result.get("machineCode"):
+        if not result.get("apiKey") or not result.get("machineCode") or not result.get("roomCode"):
             return {"error": "การตอบกลับจากเซิร์ฟเวอร์ไม่สมบูรณ์"}
         logger.info("Machine activation succeeded")
         return result

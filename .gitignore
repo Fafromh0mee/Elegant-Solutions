@@ -25,6 +25,17 @@ __pycache__/
 /agent/dist/
 /agent/release/
 /agent/release-linux/
+/agent/package-linux/
+/agent/installers/
+/agent/.build-venv/
+/agent/.build-venv-macos/
+/agent/.build-venv-windows/
+/agent/dist-macos/
+/agent/package-macos/
+/agent/*.deb
+/agent/*.pkg
+/agent/*.deb.sha256
+/agent/*.pkg.sha256
 /agent/logs/
 /agent/*.spec
 /agent/*.exe
