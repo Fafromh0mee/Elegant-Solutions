@@ -11,13 +11,13 @@ Tracking Agent ใช้ Python core เดียวกันบน Windows, mac
 ตั้ง `ELEGANT_SERVER_URL` เป็น URL HTTPS ของ backend ก่อน build แต่ละ platform. Installer เก็บเพียง URL นี้ใน `deployment.json` และไม่รวม API key หรือ activation code.
 
 ```bat
-set ELEGANT_SERVER_URL=https://pilot.example.com
+set ELEGANT_SERVER_URL=https://elegant.fafromh0me.com
 build.bat
 ```
 
 ```bash
-ELEGANT_SERVER_URL=https://pilot.example.com ./build-macos.sh
-ELEGANT_SERVER_URL=https://pilot.example.com ./build-linux.sh
+ELEGANT_SERVER_URL=https://elegant.fafromh0me.com ./build-macos.sh
+ELEGANT_SERVER_URL=https://elegant.fafromh0me.com ./build-linux.sh
 ```
 
 รหัสใหม่จาก **Admin → System → Tracking Agent Deployment** ใช้ได้ครั้งเดียวภายใน 7 วัน; รหัสแบบเดิมจาก Admin Tracking ยังหมดอายุใน 10 นาที. หลัง activation สำเร็จ service เก็บ machine identity และ API key เพื่อกลับมาทำงานหลัง reboot โดยไม่ต้องเปิดใช้งานใหม่.

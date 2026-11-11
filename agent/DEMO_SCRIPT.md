@@ -1,5 +1,7 @@
 # บทสาธิตสอบปฏิบัติ Elegant Solution Tracking Agent
 
+**Preflight จำเป็น:** backend จริง `https://elegant.fafromh0me.com` ยังไม่มี `/api/agent/activate` ตามการตรวจวันที่ 11 พ.ย. 2026. อย่าเริ่ม live activation จนกว่าจะอัปเดต backend/migrations และตรวจ endpoint; ถ้ายังไม่พร้อม ใช้ fallback ที่ระบุท้ายเอกสาร.
+
 ## 0–2 นาที: สถาปัตยกรรม
 
 เปิดภาพโครงสร้างหรืออธิบาย: `session_ui.py` (desktop) → local bridge → `machine_service.py` (service) → `/api/agent/*` → PostgreSQL → Admin Tracking. ชี้ว่า service ส่ง machine-only heartbeat ได้ก่อน student login; API key ไม่อยู่ใน UI; ทั้งสาม OS ใช้ core เดียวกันแต่ installer/startup ต่างกัน.

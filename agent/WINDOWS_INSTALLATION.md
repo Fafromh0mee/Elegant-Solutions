@@ -1,5 +1,7 @@
 # ติดตั้ง Tracking Agent บน Windows 10/11 x64
 
+**จุดหยุดก่อนสอบ:** ณ 11 พ.ย. 2026 backend จริง `https://elegant.fafromh0me.com` ยังตอบ 404 ที่ `/api/agent/activate`; ต้องอัปเดต backend/migrations และตรวจ route นี้ก่อนใช้รหัสจริง. Installer ที่ build ด้วย URL นี้ยัง activate ไม่ได้กับ server เวอร์ชันปัจจุบัน.
+
 ## เตรียม Batch และ installer
 
 1. ให้ทีม backend อัปเดต schema และเปิด HTTPS backend ที่เครื่องห้องปฏิบัติการติดต่อได้.
@@ -7,7 +9,7 @@
 3. Build บน Windows ด้วย Python 3.12 และ Inno Setup 6 จาก `agent/`:
 
 ```bat
-set ELEGANT_SERVER_URL=https://pilot.example.com
+set ELEGANT_SERVER_URL=https://elegant.fafromh0me.com
 build.bat
 ```
 

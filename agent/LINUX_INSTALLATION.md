@@ -1,5 +1,7 @@
 # ติดตั้ง Tracking Agent บน Ubuntu 22.04/24.04 x86-64
 
+**จุดหยุดก่อนสอบ:** ณ 11 พ.ย. 2026 backend จริง `https://elegant.fafromh0me.com` ยังตอบ 404 ที่ `/api/agent/activate`; ต้องอัปเดต backend/migrations และตรวจ route นี้ก่อนใช้รหัสจริง.
+
 Machine component ใช้ systemd service `elegant-agent.service` และเริ่มก่อน graphical login; UI ใช้ XDG autostart เมื่อผู้ใช้ desktop login. DEB 0.5.0 เป็น frozen binary จึงไม่ต้องลง Python บนเครื่องปลายทาง.
 
 ## Build บน Ubuntu x86-64
@@ -8,7 +10,7 @@ Machine component ใช้ systemd service `elegant-agent.service` และเ
 sudo apt-get update
 sudo apt-get install -y python3 python3-venv python3-tk dpkg-dev
 cd agent
-ELEGANT_SERVER_URL=https://pilot.example.com ./build-linux.sh
+ELEGANT_SERVER_URL=https://elegant.fafromh0me.com ./build-linux.sh
 sha256sum -c elegant-agent_0.5.0_amd64.deb.sha256
 dpkg-deb --contents elegant-agent_0.5.0_amd64.deb
 ```

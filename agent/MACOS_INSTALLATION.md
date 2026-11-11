@@ -1,5 +1,7 @@
 # ติดตั้ง Tracking Agent บน macOS
 
+**จุดหยุดก่อนสอบ:** ณ 11 พ.ย. 2026 backend จริง `https://elegant.fafromh0me.com` ยังตอบ 404 ที่ `/api/agent/activate`; ต้องอัปเดต backend/migrations และตรวจ route นี้ก่อนใช้รหัสจริง.
+
 รองรับ arm64 (Apple Silicon) และ x86_64 (Intel) ด้วย PKG คนละไฟล์. เลือกไฟล์ให้ตรงกับ `uname -m`. Machine component เป็น LaunchDaemon; UI เป็น LaunchAgent ที่เริ่มเมื่อ graphical user login.
 
 ## Build และข้อจำกัดการแจกจ่าย
@@ -8,7 +10,7 @@
 
 ```bash
 cd agent
-ELEGANT_SERVER_URL=https://pilot.example.com PYTHON_BIN=python3.12 ./build-macos.sh
+ELEGANT_SERVER_URL=https://elegant.fafromh0me.com PYTHON_BIN=python3.12 ./build-macos.sh
 shasum -a 256 -c elegant-agent_0.5.0_darwin_$(uname -m).pkg.sha256
 pkgutil --payload-files elegant-agent_0.5.0_darwin_$(uname -m).pkg
 pkgutil --check-signature elegant-agent_0.5.0_darwin_$(uname -m).pkg
