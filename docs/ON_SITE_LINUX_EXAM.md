@@ -4,9 +4,9 @@
 
 **ทางที่ตรวจสอบจากซอร์ส:** `docker-compose.pilot.yml` ใช้ PostgreSQL 16, Web, Face AI แบบ CPU, ฐานข้อมูล/AI อยู่ใน Compose network และ Web เปิดเพียง `127.0.0.1:3000`; `web/start.sh` รัน `prisma migrate deploy` ก่อน Next.js; service ทั้งสามใช้ `restart: unless-stopped` ส่วน DEB 0.5.0 รองรับ Ubuntu 22.04/24.04 `amd64` ตามเอกสาร Agent. การตรวจ Compose syntax และ lockfile ผ่านในเครื่องพัฒนา แต่ยังไม่ได้ build image หรือทดสอบบน Linux เครื่องบริษัท
 
-**จุดหยุด:** ถ้า OS/architecture ไม่ตรง, Docker daemon ใช้ไม่ได้, หน่วยความจำ/ดิสก์ไม่พอ, ไม่มี HTTPS URL ที่เครื่อง Agent เข้าถึงได้, หรือไม่มีสิทธิ์จัดการ server ให้หยุดที่ phase ที่เกี่ยวข้องและถามผู้คุมสอบก่อน ห้ามใช้ `https://elegant.fafromh0me.com` ซึ่งเป็น backend เก่า ห้ามใช้ `web/prisma/seed.ts` เพราะเป็น demo seed ที่สร้างบัญชี/รหัสผ่านตัวอย่าง ห้ามใช้ `docker compose down -v`, `prisma migrate reset` หรือ `db push --accept-data-loss`
+**จุดหยุด:** ถ้า OS/architecture ไม่ตรง, Docker daemon ใช้ไม่ได้, หน่วยความจำ/ดิสก์ไม่พอ, URL ที่เครื่อง Agent เข้าถึงได้ยังไม่ชัดเจน, หรือไม่มีสิทธิ์จัดการ server ให้หยุดที่ phase ที่เกี่ยวข้องและถามผู้คุมสอบก่อน ห้ามใช้ `https://elegant.fafromh0me.com` ซึ่งเป็น backend เก่า ห้ามใช้ `web/prisma/seed.ts` เพราะเป็น demo seed ที่สร้างบัญชี/รหัสผ่านตัวอย่าง ห้ามใช้ `docker compose down -v`, `prisma migrate reset` หรือ `db push --accept-data-loss`
 
-ใช้ตัวแปร `BACKEND_URL` เป็น URL ใหม่ เช่น `https://exam.example.org` ต้องไม่มี path หรือ `/` ท้าย URL และมีใบรับรอง TLS ที่เครื่อง Agent เชื่อถือได้ ถ้าไม่มี DNS/HTTPS จริง สามารถสาธิต Web ในเครื่องผ่าน `http://127.0.0.1:3000` ก่อน แต่ **ยังไม่ผ่านเกณฑ์ Agent จากเครื่องอื่น**; ห้าม build Agent ด้วย URL เก่า
+ใช้ตัวแปร `BACKEND_URL` เป็น URL ใหม่ เช่น `https://exam.example.org` ต้องไม่มี path หรือ `/` ท้าย URL และมีใบรับรอง TLS ที่เครื่อง Agent เชื่อถือได้. หากบริษัทไม่มี DNS/HTTPS แต่อนุญาต SSH ให้ใช้ทางสำรอง **เฉพาะการสอบด้วยข้อมูลทดสอบ**: `http://127.0.0.1:3000` บน server และสร้าง SSH local port forward บนเครื่อง desktop/client ทุกเครื่องก่อนใช้ Agent; tunnel ต้องคงอยู่ระหว่างสาธิต. วิธีนี้ไม่ใช่การยืนยัน HTTPS/public deployment. ห้าม build Agent ด้วย URL เก่า
 
 ## Phase A — Host Preflight
 
@@ -33,7 +33,7 @@ curl -I --max-time 10 https://github.com/ || true
 
 ## Phase B — Repository Preparation
 
-**เปลี่ยนระบบ: clone และสร้างไฟล์ config; ไม่ต้อง sudo**. ต้องมี HTTPS domain ที่ DNS ชี้มายัง server, พอร์ต 80/443 จาก client เข้าได้ และผู้ดูแล DNS อนุญาต. ถ้า repo private ให้ใช้ Git credential ที่ได้รับอนุญาต. รันในโฟลเดอร์ที่ผู้ใช้เขียนได้:
+**เปลี่ยนระบบ: clone และสร้างไฟล์ config; ไม่ต้อง sudo**. ทางหลักต้องมี HTTPS domain ที่ DNS ชี้มายัง server, พอร์ต 80/443 จาก client เข้าได้ และผู้ดูแล DNS อนุญาต. ทางสำรองต้องมี SSH จาก client. ถ้า repo private ให้ใช้ Git credential ที่ได้รับอนุญาต. รันในโฟลเดอร์ที่ผู้ใช้เขียนได้:
 
 ```bash
 cd "$HOME"
@@ -42,14 +42,16 @@ cd Elegant-Solutions
 git status --short --branch
 git rev-parse HEAD
 umask 077
-read -r -p 'Backend URL ใหม่ (https://...): ' BACKEND_URL
+read -r -p 'Backend URL ใหม่ (https://... หรือ http://127.0.0.1:3000 เฉพาะ SSH tunnel): ' BACKEND_URL
 export BACKEND_URL
 python3 - <<'PY'
 import os, pathlib, secrets, urllib.parse
 url = os.environ['BACKEND_URL'].rstrip('/')
 parsed = urllib.parse.urlparse(url)
-if parsed.scheme != 'https' or not parsed.hostname or parsed.path or parsed.query or parsed.fragment:
-    raise SystemExit('ต้องใช้ HTTPS origin ใหม่เท่านั้น')
+https_origin = parsed.scheme == 'https' and bool(parsed.hostname) and not (parsed.path or parsed.query or parsed.fragment)
+local_tunnel = url == 'http://127.0.0.1:3000'
+if not (https_origin or local_tunnel):
+    raise SystemExit('ต้องใช้ HTTPS origin ใหม่ หรือ loopback SSH tunnel ที่ระบุ')
 if parsed.hostname == 'elegant.fafromh0me.com':
     raise SystemExit('ห้ามใช้ production backend เก่า')
 text = pathlib.Path('.env.pilot.example').read_text()
@@ -81,7 +83,7 @@ sudo docker compose --env-file .env.pilot -f docker-compose.pilot.yml ps
 
 **ผ่าน:** build exit 0, `postgres` healthy, `face-ai` เปลี่ยนเป็น healthy เมื่อ model โหลดเสร็จ. ถ้า build ถูก kill ให้ดู `free -h`, `df -h`, `sudo docker system df` ก่อนจัดการพื้นที่; อย่าลบ volume. ถ้า Face AI build ล้มจาก wheel/architecture ให้หยุดและระบุ OS/arch กับ error. ตรวจ log แบบไม่พิมพ์ environment: `sudo docker compose --env-file .env.pilot -f docker-compose.pilot.yml logs --tail=80 face-ai`.
 
-**HTTPS:** ตัวอย่าง config มีที่ `deploy/nginx/pilot.conf.example`. บน Ubuntu 22.04/24.04 ที่มี public DNS และสิทธิ์ apt ให้ติดตั้ง Nginx/Certbot ดังนี้ (**เปลี่ยนระบบ; sudo**). ถ้าบริษัทมี reverse proxy/TLS อยู่แล้ว ให้ผู้ดูแลตั้ง proxy ไป `127.0.0.1:3000` และข้ามคำสั่งติดตั้ง proxy; อย่าทับ config ของบริษัท.
+**HTTPS ทางหลัก:** ตัวอย่าง config มีที่ `deploy/nginx/pilot.conf.example`. บน Ubuntu 22.04/24.04 ที่มี public DNS และสิทธิ์ apt ให้ติดตั้ง Nginx/Certbot ดังนี้ (**เปลี่ยนระบบ; sudo**). ถ้าบริษัทมี reverse proxy/TLS อยู่แล้ว ให้ผู้ดูแลตั้ง proxy ไป `127.0.0.1:3000` และข้ามคำสั่งติดตั้ง proxy; อย่าทับ config ของบริษัท. **ถ้าเลือก loopback SSH tunnel ให้ข้ามบล็อก Nginx/Certbot ทั้งหมด**.
 
 ```bash
 BACKEND_HOST=$(python3 -c 'import os,urllib.parse; print(urllib.parse.urlparse(os.environ["BACKEND_URL"]).hostname)')
@@ -109,6 +111,16 @@ curl -fsS "$BACKEND_URL/api/liveness"
 
 **ผ่าน:** DNS ชี้ host นี้, `nginx -t` สำเร็จ, Certbot ได้ certificate, `curl` ได้ `{"status":"ok"}` หลัง Phase D เริ่ม Web. ก่อน Web เริ่ม `curl` อาจได้ 502 ซึ่งคาดได้. ถ้า certificate ออกไม่ได้ ให้ตรวจ DNS, NAT/firewall 80/443 และเวลาของเครื่อง; **ห้ามติดตั้ง Agent ด้วย URL ที่ TLS ไม่ถูกต้อง**. ถ้า symlink/config มีอยู่แล้ว หยุดตรวจของเดิมก่อนแก้.
 
+**ทางสำรอง SSH tunnel:** บนเครื่องที่ใช้ browser หรือ desktop Agent รันคำสั่งนี้ใน terminal แยกและปล่อยให้ทำงานตลอดการสาธิต (**อ่าน/เชื่อมต่ออย่างเดียว; ไม่ต้อง sudo**):
+
+```bash
+ssh -N -L 3000:127.0.0.1:3000 USER@SERVER_IP
+# ใน terminal อีกหน้าของ client หลัง Web เริ่ม:
+curl -fsS http://127.0.0.1:3000/api/liveness
+```
+
+**ผ่าน:** client ได้ `{"status":"ok"}`; ถ้าพอร์ต 3000 ของ client ถูกใช้ ให้หยุด/เปลี่ยน port tunnel แล้วต้อง rebuild DEB/แก้ `AUTH_URL` ให้ตรงกันก่อน activation. ห้าม expose Web ที่ `0.0.0.0:3000` เพื่อแก้ปัญหานี้.
+
 ## Phase D — Database Migration และ Web
 
 **เปลี่ยนฐานข้อมูลใหม่และเริ่ม Web; sudo สำหรับ Docker**. Compose ใช้ PostgreSQL 16 ใน named volume; ห้ามใช้ production dump. รัน migrate อย่างชัดเจนก่อนเริ่ม Web; `web/start.sh` จะรันซ้ำแบบ idempotent เมื่อ Web เริ่ม:
@@ -122,7 +134,7 @@ sudo bash scripts/pilot-check.sh
 curl -fsS "$BACKEND_URL/api/liveness"
 ```
 
-**ผ่าน:** migration จบโดยไม่มี `P3018`/missing table; status รายงาน up to date; pilot-check Web/DB/Face AI ผ่าน; HTTPS liveness เป็น 200. `prisma migrate status` เป็นคำสั่งอ่านอย่างเดียว ส่วน `migrate deploy` เขียน schema. ถ้าฐานข้อมูลยังไม่ healthy ให้ดู `sudo docker compose --env-file .env.pilot -f docker-compose.pilot.yml logs --tail=80 postgres`; ถ้า migration ผิดพลาดให้หยุด ไม่ reset DB. ถ้า Web crash ดู log `... logs --tail=80 web`. `bash scripts/pilot-check.sh` ไม่เปลี่ยนข้อมูล.
+**ผ่าน:** migration จบโดยไม่มี `P3018`/missing table; status รายงาน up to date; pilot-check Web/DB/Face AI ผ่าน; liveness เป็น 200 ผ่าน HTTPS หรือ loopback tunnel ตามทางที่เลือก. `prisma migrate status` เป็นคำสั่งอ่านอย่างเดียว ส่วน `migrate deploy` เขียน schema. ถ้าฐานข้อมูลยังไม่ healthy ให้ดู `sudo docker compose --env-file .env.pilot -f docker-compose.pilot.yml logs --tail=80 postgres`; ถ้า migration ผิดพลาดให้หยุด ไม่ reset DB. ถ้า Web crash ดู log `... logs --tail=80 web`. `sudo bash scripts/pilot-check.sh` ไม่เปลี่ยนข้อมูล.
 
 ## Phase E — บัญชีแรกและห้องทดสอบ
 
@@ -153,11 +165,12 @@ SQL
 
 ## Phase F — สร้างและติดตั้ง Linux Tracking Agent
 
-**เปลี่ยนระบบ: build DEB และ apt install; sudo เฉพาะ apt**. ทำบน Ubuntu 22.04/24.04 `x86_64` เท่านั้น. DEB ที่เคย build ไว้ชี้ production เก่า; **ห้ามนำมาติดตั้ง**. `ELEGANT_SERVER_URL` จะถูกเขียนลง `deployment.json` ใน DEB ตอน build จึงต้อง build ใหม่ด้วย URL บริษัท. ใน shell เดิมยังมี `BACKEND_URL` จาก Phase B:
+**เปลี่ยนระบบ: build DEB และ apt install; sudo เฉพาะ apt**. ทำบน Ubuntu 22.04/24.04 `x86_64` เท่านั้น. DEB ที่เคย build ไว้ชี้ production เก่า; **ห้ามนำมาติดตั้ง**. `ELEGANT_SERVER_URL` จะถูกเขียนลง `deployment.json` ใน DEB ตอน build จึงต้อง build ใหม่ด้วย URL บริษัท หรือ loopback tunnel ที่เลือก. ใน shell เดิมยังมี `BACKEND_URL` จาก Phase B:
 
 ```bash
 test "$(uname -m)" = x86_64
 curl -fsS "$BACKEND_URL/api/liveness"
+sudo apt-get update
 sudo apt-get install -y python3 python3-venv python3-tk dpkg-dev
 cd agent
 ELEGANT_SERVER_URL="$BACKEND_URL" bash ./build-linux.sh
@@ -202,7 +215,7 @@ Bridge ใช้ `127.0.0.1:18767` และ token ใน `/run/elegant-agent/to
 xdg-open "$BACKEND_URL/admin/tracking"
 ```
 
-Login Agent UI ด้วยบัญชี test student ที่มีสิทธิ์ห้อง, เปิดแอปทดสอบ, ดู `/admin/tracking` และ `/api/tracking/snapshot` ผ่าน browser admin, logout แล้วตรวจว่าเครื่องยัง Online. **ผ่าน:** dashboard มี machine code เดิมและ activity เฉพาะช่วง login; logout แล้ว machine ยัง Online. ถ้า login ไม่ได้ ให้ตรวจบัญชี `APPROVED` และสิทธิ์ใช้ห้องก่อนดู journal โดยไม่พิมพ์รหัสผ่าน. X11 อาจส่งชื่อ app/window ได้; Wayland อาจส่ง `null` ตามโค้ด Agent ปัจจุบัน. **Headless ไม่มี foreground window**: สาธิต machine heartbeat บน server ที่ Phase G และใช้ Ubuntu desktop `amd64` แยกอีกเครื่องที่ลง DEB ซึ่ง build ด้วย URL บริษัท สร้าง Batch/code อีกชุดสำหรับเครื่อง desktop แล้วทดสอบ activity ที่นั่น. ไม่อ้างว่า headless host จับกิจกรรมหน้าจอได้.
+Login Agent UI ด้วยบัญชี test student ที่มีสิทธิ์ห้อง, เปิดแอปทดสอบ, ดู `/admin/tracking` และ `/api/tracking/snapshot` ผ่าน browser admin, logout แล้วตรวจว่าเครื่องยัง Online. **ผ่าน:** dashboard มี machine code เดิมและ activity เฉพาะช่วง login; logout แล้ว machine ยัง Online. ถ้า login ไม่ได้ ให้ตรวจบัญชี `APPROVED` และสิทธิ์ใช้ห้องก่อนดู journal โดยไม่พิมพ์รหัสผ่าน. X11 อาจส่งชื่อ app/window ได้; Wayland อาจส่ง `null` ตามโค้ด Agent ปัจจุบัน. **Headless ไม่มี foreground window**: สาธิต machine heartbeat บน server ที่ Phase G และใช้ Ubuntu desktop `amd64` แยกอีกเครื่องที่ลง DEB ซึ่ง build ด้วย URL เดียวกัน สร้าง Batch/code อีกชุดสำหรับเครื่อง desktop แล้วทดสอบ activity ที่นั่น. ถ้าใช้ URL loopback ต้องเปิด SSH tunnel บนเครื่อง desktop ก่อน activate และคง tunnel ไว้. ไม่อ้างว่า headless host จับกิจกรรมหน้าจอได้.
 
 ## Phase I — Reboot และ Recovery
 
