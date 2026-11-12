@@ -19,6 +19,7 @@ nproc
 free -h
 df -h . /var/lib/docker 2>/dev/null || df -h .
 command -v docker && docker --version && docker compose version && docker info --format '{{.ServerVersion}}'
+systemctl is-enabled docker 2>/dev/null || true
 id; sudo -n true && echo SUDO_OK || echo SUDO_REQUIRES_PASSWORD_OR_UNAVAILABLE
 ss -ltn | grep -E ':(22|80|443|3000) ' || true
 systemctl is-active ssh 2>/dev/null || systemctl is-active sshd 2>/dev/null || true
@@ -117,7 +118,7 @@ sudo docker compose --env-file .env.pilot -f docker-compose.pilot.yml exec -T po
 sudo docker compose --env-file .env.pilot -f docker-compose.pilot.yml run --rm --no-deps --entrypoint sh web -c 'prisma migrate deploy --config ./prisma.runtime.config.ts'
 sudo docker compose --env-file .env.pilot -f docker-compose.pilot.yml run --rm --no-deps --entrypoint sh web -c 'prisma migrate status --config ./prisma.runtime.config.ts'
 sudo docker compose --env-file .env.pilot -f docker-compose.pilot.yml up -d web
-bash scripts/pilot-check.sh
+sudo bash scripts/pilot-check.sh
 curl -fsS "$BACKEND_URL/api/liveness"
 ```
 
@@ -215,7 +216,8 @@ BACKEND_URL=$(sed -n 's/^AUTH_URL=//p' .env.pilot)
 sudo docker compose --env-file .env.pilot -f docker-compose.pilot.yml ps
 systemctl is-enabled elegant-agent.service
 systemctl is-active elegant-agent.service
-bash scripts/pilot-check.sh
+systemctl is-active nginx 2>/dev/null || true # เฉพาะกรณีใช้ Nginx บน host
+sudo bash scripts/pilot-check.sh
 curl -fsS "$BACKEND_URL/api/liveness"
 ```
 
