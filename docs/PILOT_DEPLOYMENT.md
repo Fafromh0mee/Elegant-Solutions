@@ -1,5 +1,9 @@
 # Elegant Solution — Single-host Pilot Deployment
 
+สำหรับการติดตั้งระบบครบชุดบนเครื่องใหม่ในสนามสอบ รวม Agent และการสร้าง
+`SUPER_ADMIN` คนแรก ให้ใช้ [ON_SITE_LINUX_EXAM.md](ON_SITE_LINUX_EXAM.md)
+ควบคู่กับเอกสารนี้
+
 This runbook describes the supported pilot path for an Ubuntu Server 22.04 or
 24.04 x86-64 host with Docker Engine and the Docker Compose plugin. It uses
 CPU-only Face AI and keeps PostgreSQL and Face AI private to Docker networking.
