@@ -1,0 +1,13 @@
+% Editable original vector diagrams. Keep labels short enough for A4.
+\newcommand{\flowfour}[5]{%
+\begin{figure}[htbp]\centering
+\begin{tikzpicture}[node distance=3mm,box/.style={draw=line,fill=pale,rounded corners=4pt,align=center,text width=31mm,minimum height=17mm,font=\small},arr/.style={-{Latex[length=2mm]},draw=brand,line width=1pt}]
+\node[box] (a) {#2}; \node[box,right=of a] (b) {#3}; \node[box,right=of b] (c) {#4}; \node[box,right=of c] (d) {#5};
+\draw[arr] (a) -- (b); \draw[arr] (b) -- (c); \draw[arr] (c) -- (d);
+\end{tikzpicture}\caption{#1}\end{figure}}
+\newcommand{\flowthree}[4]{%
+\begin{figure}[htbp]\centering
+\begin{tikzpicture}[node distance=6mm,box/.style={draw=line,fill=pale,rounded corners=4pt,align=center,text width=42mm,minimum height=17mm,font=\small},arr/.style={-{Latex[length=2mm]},draw=brand,line width=1pt}]
+\node[box] (a) {#2}; \node[box,right=of a] (b) {#3}; \node[box,right=of b] (c) {#4};
+\draw[arr] (a) -- (b); \draw[arr] (b) -- (c);
+\end{tikzpicture}\caption{#1}\end{figure}}

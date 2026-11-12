@@ -1,0 +1,108 @@
+\chapter{สถาปัตยกรรมและเทคโนโลยี}
+เว็บใช้ Next.js 16.1.6, React 19.2.3, NextAuth 5 beta, Prisma 7.3 และ PostgreSQL 16 ตาม package/schema/runbook. Face AI เป็น FastAPI + InsightFace รุ่นโมเดลที่กำหนดใน service. OCR ใช้ Tesseract.js 5.1.1 ที่ browser ผ่าน CDN และ parser ใน TypeScript. Tracking Agent เป็น Python core แยก service/UI; PyInstaller package สำหรับ Windows, macOS และ Linux. CI สร้างสี่ artifacts แต่ CI build ไม่ใช่หลักฐาน end-to-end บนเครื่องจริง
+\flowfour{องค์ประกอบซอฟต์แวร์ (แผนภาพอธิบาย)}{Next.js UI/API}{Prisma/PostgreSQL}{Face AI}{Agent หลาย OS}
+เส้นทาง request: Browser login/web actions ผ่าน NextAuth และ server action; Gate ส่ง QR/ภาพไป API; Next.js ตรวจข้อมูล/สิทธิ์ฐานข้อมูล; Face API เรียก service ภายใน. Agent ใช้ machine key แยกจาก web session. PM2/Nginx/Cloudflare อยู่ในชั้น deploy ไม่ใช่โค้ด business logic
+\source{web/package.json; web/prisma/schema.prisma; web/ai-service/main.py; agent/README.md; .github/workflows/agent-packages.yml}
+
+\chapter{ฐานข้อมูลและความสัมพันธ์}
+Prisma ใช้ \code{User} เป็นบัญชี/role/status; \code{Room} เป็นห้องและนโยบาย; \code{ClassSchedule} ผูก user/room/semester; \code{RoomBooking} ผูกผู้ขอ/ห้อง/วัน/status โดย \code{RoomBookingSlot} ระบุช่วง และ \code{RoomBookingParticipant} บันทึก snapshot ผู้มีสิทธิ์. \code{AccessToken} คือ legacy token ช่วงเวลา; \code{Session} บันทึก check-in/out; \code{FaceProfile} เก็บ embedding ของ user
+
+ด้าน Agent มี \code{AgentMachine} ผูกห้องและ machine code/API key; \code{AgentSession} ผูก machine/user/room พร้อม token hash และ expiry; \code{AgentLog} บันทึกกิจกรรม; \code{AgentActivationCode}, \code{AgentDeploymentBatch}, \code{AgentMachineSequence}, \code{AgentActivationThrottle}, \code{AgentMaintenanceCode} และ \code{AgentAuditEvent} จัดการวงจรเปิดใช้และตรวจสอบย้อนหลัง
+\flowfour{ER แบบย่อ: ห้องและการใช้งาน (ภาพอธิบาย)}{User + Room}{ClassSchedule\ RoomBooking}{AccessToken\ Session}{AgentMachine\ AgentSession/Log}
+Constraint ที่ควรรู้: \code{Room.roomCode} และ \code{AgentMachine.machineCode} เป็น unique; booking participant unique ต่อคู่ booking/user; slot unique ต่อ booking/slot; availability window unique ต่อ room/day/slot. การลบห้อง/ผู้ใช้มีข้อจำกัดจาก FK; ห้ามลบข้อมูลจริงเพื่อแก้ migration อย่างรวดเร็ว. ชุด migration ที่เคยซ้อมมี 17 รายการ และ production upgrade เคยรายงาน 17/17; คู่มือนี้ไม่ได้อ่านฐานข้อมูล production สด
+\source{web/prisma/schema.prisma; docs/PRODUCTION_PM2_DEPLOYMENT.md; web/src/lib/room-entitlement.ts}
+
+\chapter{กระบวนการ OCR ตารางเรียน}
+Browser โหลด Tesseract.js จาก CDN, สร้าง worker, อ่านภาพแต่ละไฟล์เป็นข้อความ จากนั้น \code{parseOcrBatch} แยกบรรทัด/กลุ่มวิชา ตรวจชื่อ, semester, day, course code, section, class type, เวลา, room และเทียบ academic slot. Parser รวมแถวซ้ำและให้สถานะ \code{ready/warning/error}. UI แสดง preview และ raw OCR/debug เพื่อให้ผู้ใช้ตรวจ ก่อน import ผ่าน server action; server ตรวจข้อมูลอีกครั้งก่อนบันทึก
+\flowfour{OCR pipeline (ภาพอธิบาย)}{Screenshot}{Tesseract.js}{Parser/validation}{Preview $\rightarrow$ DB}
+ตัวอย่างสมมติ: ภาพมีข้อความ \code{CS101 LAB Mon 09:00-12:00 LAB-A}; preview ควรแสดงรหัสวิชา, ประเภท LAB, วัน/เวลา และห้องที่อ่านได้ ผู้ใช้ต้องแก้ถ้าภาพเบลอหรือ parser จับ slot ไม่ได้. ต้องทดสอบด้วยภาพที่ได้รับอนุญาต; OCR ไม่ตรวจความจริงของตารางจากมหาวิทยาลัยโดยตรง
+\source{web/src/components/ocr-timetable-panel.tsx; web/src/lib/ocr-timetable.ts; web/src/actions/ocr-timetable.ts; web/src/lib/academic-slots.ts}
+
+\chapter{Face AI และการยืนยันใบหน้า}
+\section*{Enrollment}
+\code{POST /api/face/enroll} ต้องมี web session และปฏิเสธ GUEST. UI เก็บภาพจากกล้อง 1--3 ภาพ; API ส่ง \code{user_id} และภาพ base64 ไป Face AI \code{/enroll}. Service ใช้ InsightFace ตรวจหน้า เลือกใบหน้าที่ detection score สูงสุดในแต่ละภาพ ตรวจขนาด/คุณภาพ และเฉลี่ย embedding ที่ได้. Next.js upsert \code{FaceProfile} และบันทึก log. โค้ดที่ตรวจไม่ได้ยืนยันว่าภาพมีหน้าเดียวเสมอ; การเลือกใบหน้าที่คะแนนสูงสุดอาจไม่ตรงคนที่ตั้งใจ
+\flowfour{Face enrollment (ภาพอธิบาย)}{Web session + กล้อง}{Face AI detect}{Embedding เฉลี่ย}{FaceProfile}
+\section*{Verification}
+\code{POST /api/face/verify} รับภาพกับ \code{room_code}; server ตรวจห้อง active, ส่ง embeddings ของ non-guest users ให้ Face AI เปรียบเทียบ 1:N ด้วย threshold ค่าเริ่ม \code{0.73} หรือ \code{FACE_THRESHOLD}. เมื่อ match แล้วโหลด user, ตรวจ \code{staffOnly}, และสำหรับ STUDENT/GUEST ตรวจ entitlement ห้องปัจจุบัน; ADMIN/SUPER\_ADMIN ไม่ผ่าน entitlement check นี้ตามโค้ด. หากอนุญาตจะเรียก \code{checkInAction}; ถ้ามี active session เดิมจึง \code{checkOutAction}. Log เก็บผลการยืนยัน
+\flowfour{Face verification (ภาพอธิบาย)}{Gate ส่งภาพ/room}{Face AI match}{Entitlement}{Check-in/out}
+ภาพไม่ถูกต้อง, ไม่พบหน้า, ไม่มี profile หรือ service ล่มต้องปฏิเสธ/คืน error ตาม API. ไม่พบ liveness หรือ anti-spoofing ใน flow ที่ตรวจ; ไม่อ้างว่ากันภาพถ่ายได้. การตรวจผ่านซอฟต์แวร์ไม่ยืนยันกลอนไฟฟ้าเปิดจริง. Embedding เป็นข้อมูลชีวมิติ ต้องจำกัดสิทธิ์และกำหนดนโยบายการเก็บ/ลบ
+\source{web/src/app/api/face/enroll/route.ts; web/src/app/api/face/verify/route.ts; web/ai-service/main.py; web/src/actions/sessions.ts}
+
+\chapter{QR, access token และ Gate}
+Dashboard สร้าง token ด้วย \code{crypto.randomUUID()} ผ่าน \code{generateAccessTokenAction} แล้วใช้ library \code{qrcode} สร้างภาพ QR จาก \emph{ค่า token} โดยตรง ไม่ใช่ URL. Gate page \code{/gate/[roomCode]} ใช้ \code{html5-qrcode} อ่าน QR แล้วเรียก server action \code{verifyGateAccessAction} โดยตรง; route \code{POST /api/gate/verify} เป็นทางเข้า API แยกที่เรียก action เดียวกัน. Validation ตรวจ token ตรง room และอยู่ในช่วง \code{validFrom/validTo}; ถ้าไม่ใช่ token ที่ใช้ได้จะลองตีความ input เป็น \code{studentId} เพื่อหาตารางเรียนของห้อง/เวลานั้น
+\flowfour{QR/token flow (ภาพอธิบาย)}{Dashboard สร้าง UUID}{QR แสดง token}{Gate สแกน}{API ตรวจ room/เวลา}
+\section*{ความต่างที่ต้องไม่สับสน}
+\begin{itemize}
+\item การสร้าง QR เป็นการแสดง token; ไม่เท่ากับการสร้าง booking และไม่ใช่ code ใช้ครั้งเดียวโดยอัตโนมัติ
+\item \code{verifyAccessTokenAction} ตรวจช่วงเวลาและ room; token สามารถใช้ซ้ำในช่วงเวลาที่กำหนดตามโค้ดที่ตรวจ ไม่พบการ consume หลังสแกน
+\item \code{verifyGateAccessAction} มีเส้นทาง student ID fallback; นี่ไม่ใช่ QR token และใช้เงื่อนไขตารางเรียนเฉพาะทาง
+\item \code{resolveRoomEntitlement} ใช้ legacy token เฉพาะที่ออกให้ user/room นั้น; group token ไม่ขยายสิทธิ์สู่สมาชิกใน resolver แม้ Gate validation ของ token กลุ่มมี branch แยก
+\item การตอบ \code{valid: true} จาก server action/API Gate ไม่เท่ากับการบันทึก Session เสมอ; หน้า Gate จึงเรียก \code{checkInAction/checkOutAction} ต่อและตรวจผล. โค้ดไม่มีหลักฐานการควบคุมฮาร์ดแวร์ประตูแบบครบวงจร
+\end{itemize}
+\source{web/src/actions/access-tokens.ts; web/src/actions/groups.ts; web/src/app/(app)/dashboard/dashboard-client.tsx; web/src/app/gate/[roomCode]/page.tsx; web/src/app/api/gate/verify/route.ts}
+
+\chapter{รหัสและ token สำคัญ}
+\begin{longtable}{L{27mm}L{32mm}L{32mm}L{32mm}L{34mm}}
+\toprule ชนิด & สร้างโดย/รูปแบบ & อายุ & เก็บ/ตรวจ & เพิกถอน/ข้อสังเกต \\ \midrule\endhead
+Room code & Admin กำหนด; unique ใน Room & จนเปลี่ยน & DB, room lookup & ปิด room ได้ \\
+Machine code & sequence ต่อห้อง, \code{-PCnn} & ตาม machine & unique ใน DB & deactivate machine \\
+Batch activation & \code{randomInt}, 6 หลัก & 7 วัน & hash, consumedAt & revoke unused; ใช้ครั้งเดียว \\
+Code เดี่ยว & \code{randomInt}, 6 หลัก & 10 นาที & hash, consumedAt & cancel unused \\
+Machine API key & DB default/generated & จน deactivate & config เครื่อง + DB & deactivate/ถอน; ไม่ใส่ installer \\
+Agent session token & \code{randomBytes(32)} base64url & ถึง entitlement end & SHA-256 hash ใน DB & logout/expiry/revoke \\
+Maintenance code & \code{randomInt}, 6 หลัก & 5 นาที & hash, ผูก action/machine & ใช้ครั้งเดียว \\
+Access token QR & \code{crypto.}\newline\code{randomUUID()} & validFrom--validTo & token ใน DB/QR & ไม่พบ consume เมื่อสแกน \\
+Booking ID/batch ID & Prisma default \code{cuid()} & ตลอด record & primary key & สถานะ/ลบตามกฎ DB \\
+\bottomrule
+\end{longtable}
+Hash activation/maintenance ใช้ helper \code{hashAgentOneTimeCode} ที่ผูก secret ของ server; session token เก็บ hash. API key ของ machine อยู่ใน config ที่ root/service อ่านได้และส่งใน header \code{x-agent-key}. Rate limit activation ใช้ durable throttle; Agent login/maintenance มีการจำกัดอัตราแยก. อย่านำ code ตัวอย่างในคู่มือไปใช้จริง
+\source{web/src/lib/agent-activation.ts; web/src/lib/agent-deployment-batches.ts; web/src/lib/agent-session.ts; web/src/lib/agent-maintenance.ts; web/src/actions/access-tokens.ts; web/prisma/schema.prisma}
+
+\chapter{Room Availability และ Entitlement}
+Availability สำหรับการจองตรวจ room active, \code{bookingEnabled}, availability windows, closures, class schedule, booking เดิม, slot, capability, capacity, วันและเวลา. \code{AUTO} อนุมัติอัตโนมัติเมื่อผ่านกฎ; \code{MANUAL} ให้สถานะ pending รอ Admin. การจองแบบกลุ่มใช้ participant snapshot และ advisory locks กันการจองทับ/แข่งกัน; การเปลี่ยนสมาชิก Group ภายหลังไม่เปลี่ยนสิทธิ์ booking เดิม
+\flowfour{Entitlement decision (ภาพอธิบาย)}{User + Room + Now}{สิทธิ์ 3 แหล่ง}{ตรวจช่วงเวลา}{Allow + validUntil}
+\code{CLASS} ใช้ semester ที่ active, วันและช่วงเรียน โดยเริ่มก่อนชั้นเรียน 30 นาที. \code{BOOKING} ต้อง approved และ user อยู่ใน \code{RoomBookingParticipant}, เวลาอยู่ภายในช่วง slot. \code{LEGACY_TOKEN} ต้องออกให้ user และ room นี้และยังไม่หมดอายุ. หากหลายแหล่งทับกันให้สิทธิ์ถึงเวลาสิ้นสุดที่ไกลที่สุด. Agent login ใช้ resolver นี้; Face verify ใช้กับ STUDENT/GUEST. ตัวอย่างสมมติ: เรียน 09:00--12:00 ที่ห้อง LAB-A จะเริ่มสิทธิ์ CLASS 08:30 ถึงก่อน 12:00 ตามเวลา Asia/Bangkok
+\source{web/src/lib/availability.ts; web/src/lib/room-booking.ts; web/src/lib/room-booking-rules.ts; web/src/lib/room-entitlement.ts; web/src/app/api/agent/auth/route.ts}
+
+\chapter{Agent API และ Monitoring}
+\begin{longtable}{L{50mm}L{19mm}L{43mm}L{47mm}}
+\toprule Path & Method & ยืนยันตัวตน & หน้าที่/ข้อมูลสำคัญ \\ \midrule\endhead
+\code{/api/agent/activate} & POST & code 6 หลัก + throttle & hostname/platform $\rightarrow$ machine code, room, API key \\
+\code{/api/agent/auth} & POST & machine key + email/password & entitlement $\rightarrow$ sessionToken/expiresAt \\
+\code{/api/agent/heartbeat} & POST & machine key; session optional & lastSeen/version; log activity เมื่อ session valid \\
+\code{/api/agent/config} & GET & machine key & blacklist/room/platform \\
+\code{/api/agent/session/refresh} & POST & machine key + session & ต่ออายุหาก entitlement ยังมี \\
+\code{/api/agent/session/logout} & POST & machine key + session & revoke user session \\
+\code{/api/agent/maintenance/}\newline\code{authorize} & POST & machine key + code & ตรวจ action; ถอนแล้ว deactivate \\
+\code{/api/tracking/snapshot} & GET & Admin web session & สถานะเครื่อง/ผู้ใช้/กิจกรรมล่าสุด \\
+\code{/api/tracking/machine-logs} & GET & Admin web session & log ล่าสุด 50 แถวตาม machineId \\
+\code{/api/admin/agent/}\newline\code{installers/[platform]} & GET & Admin web session & EXE/PKG/DEB ที่ stage แล้ว \\
+\bottomrule
+\end{longtable}
+Heartbeat ทุก 10 วินาทีอัปเดต \code{AgentMachine.lastSeen}; dashboard ถือ Online เมื่อ active และ lastSeen ใหม่กว่า 30 วินาที. Activity ล่าสุดแสดงเฉพาะเมื่อเครื่อง Online, มี Agent session ปัจจุบัน และ log เป็นผู้ใช้เดียวกันหลังเวลาออก session. Missing/invalid session token ส่ง 401; machine-only heartbeat ยังเป็น 200 และไม่สร้าง AgentLog. API ตัวอย่างไม่ควรฝัง key จริง
+\section*{ข้อมูลและการตอบกลับที่ต้องรู้}
+Activation รับ \code{activationCode}, \code{hostname}, \code{platform}; สำเร็จส่ง \code{machineCode}, \code{roomCode}, \code{apiKey}. รูปแบบผิดได้ 400, code ผิด/หมดอายุ/ใช้แล้ว/ถูกยกเลิกได้ 403 และ throttle ได้ 429 พร้อม \code{Retry-After}. Auth รับ \code{email/password} คู่ machine key; บัญชีไม่ approved หรือรหัสผิดได้ 401, ห้องไม่ active หรือไม่มี entitlement ได้ 403. Session token ต้องส่งใน \code{x-agent-session} เมื่อรายงาน activity. Maintenance รับ \code{code/action}; code ผิดได้ 403, machine key ผิดได้ 401 และ throttle ได้ 429. Snapshot และ machine logs ต้องมี Admin web session; installer route อาจตอบ 503 เมื่อยังไม่ตั้ง directory หรือ 404 เมื่อยังไม่ได้ stage file. ตัวอย่าง request ด้านล่างเป็นข้อมูลสมมติทั้งหมด
+\begin{lstlisting}
+POST /api/agent/heartbeat
+X-Agent-Key: <machine-key-redacted>
+Content-Type: application/json
+
+{"agentVersion":"0.5.0"}
+\end{lstlisting}
+\source{web/src/app/api/agent/*/route.ts; web/src/app/api/tracking/snapshot/route.ts; web/src/lib/agent-health.ts; agent/src/api_client.py}
+
+\chapter{ความปลอดภัย ความเป็นส่วนตัว และข้อจำกัด}
+Backend แยก web session/role, machine key และ Agent session. Activation/maintenance code ถูก hash, ใช้ครั้งเดียว มีวันหมดอายุและ throttle. Machine config อยู่ในพื้นที่สิทธิ์จำกัด; UI ติดต่อ machine service ด้วย local token. HTTPS ใช้ที่ public endpoint. Admin ดู machine/user/activity ตามสิทธิ์; ข้อมูลชื่อหน้าต่างอาจมีข้อมูลส่วนตัว ควรกำหนดการแจ้งผู้ใช้ ระยะเก็บ และสิทธิ์เข้าถึงก่อนขยายใช้งานจริง
+
+\begin{longtable}{L{47mm}L{107mm}}
+\toprule สถานะ & ข้อเท็จจริง/งานที่ต้องตรวจ \\ \midrule\endhead
+\status{IMPLEMENTED} & Agent machine heartbeat แยกจาก student login, QR gate path, Face AI match, room entitlement, batch codes, admin snapshot \\
+\status{AUTOMATED TESTED} & รายงานก่อนหน้าระบุ Agent 19, Web 549, DB 166 และ build/CI ผ่าน; ไม่รันชุดนี้ซ้ำเพื่อทำเอกสาร \\
+\status{VERIFIED ON REAL HARDWARE} & ผู้ใช้รายงาน macOS install/activate/Online/reboot UI และ machine identity เดิม รวมถึงถอนด้วย maintenance code และตรวจ receipt/launchctl \\
+\status{NOT YET VERIFIED} & Student Agent login/activity/logout บนเครื่องจริง; Windows/Ubuntu install/reboot จริง; ประตูฮาร์ดแวร์; macOS title capture หลังให้สิทธิ์ \\
+\status{PARTIAL IMPLEMENTATION} & เว็บไซต์ blacklist ยังไม่พิสูจน์การบังคับใช้ครบสาม OS; Group QR UI ปิด; Contact/Survey ไม่ควรนำเสนอเป็น workflow production \\
+\status{NOT IMPLEMENTED} & Agent 0.5.0 ไม่บังคับ OS login ก่อนใช้ desktop; ไม่พบ liveness/anti-spoofing ใน Face flow \\
+\bottomrule
+\end{longtable}
+คู่มือ Agent เก่าบางไฟล์ระบุ backend \code{/api/agent/activate} เป็น 404 ณ 11 พ.ย. 2026 ซึ่งเป็นหลักฐานประวัติ ไม่ใช่สถานะหลัง deployment ที่รายงานในวันถัดมา. การติดตั้ง/activate macOS ที่ผู้ใช้รายงานพิสูจน์ว่า endpoint ใช้งานได้ในช่วงทดลองนั้น แต่ไม่ได้ยืนยันทุก endpoint หรือทุก OS. การถอน macOS script ไม่ลบ log ใน \code{/var/log}; การออก maintenance code ถอนจะ deactivate machine ก่อนลบ local เสร็จ จึงต้องมีขั้นตรวจเมื่อเกิด partial failure
+\source{agent/EXAM_CHEAT_SHEET.md; agent/macos/uninstall-agent.sh; web/src/app/api/agent/maintenance/authorize/route.ts; web/src/lib/agent-health.ts}

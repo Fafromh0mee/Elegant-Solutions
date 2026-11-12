@@ -1,0 +1,96 @@
+\chapter{รู้จัก Elegant Solution}
+Elegant Solution เป็นระบบจัดการการใช้ห้องปฏิบัติการที่เชื่อมบัญชีผู้ใช้ ตารางเรียน การค้นหาห้อง การจอง สิทธิ์เข้าห้อง จุดตรวจหน้าห้อง และสถานะเครื่องคอมพิวเตอร์ ผู้ใช้ทำงานผ่านเว็บ; ผู้ดูแลกำหนดห้อง อนุมัติคำขอ ตรวจประวัติ และติดตั้ง Tracking Agent บนเครื่องแล็บ จุดมุ่งหมายของโครงการคือให้ข้อมูลการใช้ห้องและเครื่องสัมพันธ์กันในระบบเดียว โดยไม่อ้างผลสำรวจหรือการทดลองที่ไม่มีหลักฐาน
+
+ขอบเขตสำคัญมีสองชั้น: เว็บและ Face AI ทำงานบนเซิร์ฟเวอร์; Tracking Agent ทำงานบนเครื่องแล็บแต่ละเครื่อง การมี Agent Online หมายถึงเครื่องส่ง heartbeat ได้ ไม่ได้แปลว่ามีนักศึกษาผ่านการตรวจสิทธิ์แล้ว และซอฟต์แวร์ยืนยันการเข้าห้องไม่ได้พิสูจน์ว่ากลอนไฟฟ้าปลดล็อกจริง
+\flowfour{ภาพรวมระบบ (แผนภาพอธิบายจากโค้ด)}{บัญชีและตารางเรียน}{ค้นหา/จองห้อง}{Gate และ Face AI}{Agent และรายงาน}
+\section*{ความสามารถหลักและขอบเขต}
+ระบบมีเว็บสำหรับ \code{STUDENT}, \code{GUEST}, \code{ADMIN}, \code{SUPER_ADMIN}; ตารางเรียน, OCR, Room Finder, booking, token QR, face enrollment/verification, Admin Tracking และ batch enrollment. หน้า Contact/Survey เป็นการแสดงผลบางส่วนและไม่ควรอ้างว่ารับข้อมูลจริงโดยไม่ตรวจโค้ดปลายทาง เว็บไซต์ blacklist ใน Agent รุ่น 0.5.0 ไม่ได้ยืนยันการบังคับใช้ครบทุก OS. การบังคับ login ก่อนใช้งาน desktop macOS ยังไม่ใช่พฤติกรรมของ Agent ปัจจุบัน
+\source{web/src/lib/permissions.ts; web/src/lib/room-entitlement.ts; agent/src/session_ui.py}
+
+\chapter{บทบาทและสิทธิ์}
+สิทธิ์ไม่ได้มาจากชื่อหน้าที่ UI แสดงอย่างเดียว Backend ตรวจ session, role, account status และในกรณีห้อง ตรวจ entitlement จากข้อมูลจริง การ login เว็บ, การยืนยันตัวเครื่องด้วย API key และ Agent user session เป็นคนละสิ่ง
+\begin{longtable}{L{34mm}L{31mm}L{31mm}L{31mm}L{31mm}}
+\toprule รายการ & SUPER\_ADMIN & ADMIN & STUDENT & GUEST \\ \midrule\endhead
+เว็บและโปรไฟล์ & ได้ & ได้ & ได้ & ได้เมื่อ login \\
+เมนู Admin ยกเว้น System Control & ได้ & ได้ & ไม่ได้ & ไม่ได้ \\
+System Control และ Deployment Batch & ได้ & ไม่ได้ & ไม่ได้ & ไม่ได้ \\
+Room Finder & ดูได้ & ดูได้ & ดูได้ & เฉพาะ approved และห้องที่เปิดให้ Guest \\
+จองห้องด้วยตนเอง & ไม่ได้ & ไม่ได้ & ได้ & เฉพาะ approved \\
+ลงทะเบียนใบหน้า & ได้ & ได้ & ได้ & ไม่ได้ \\
+Agent user login & มีบัญชี approved และสิทธิ์ห้อง ณ เวลาใช้งาน & เช่นเดียวกัน & เช่นเดียวกัน & เช่นเดียวกัน แต่ guest ไม่มี face enrollment \\
+\bottomrule
+\end{longtable}
+\flowfour{ชั้นการตรวจสิทธิ์ (แผนภาพอธิบาย)}{Web session}{Role/สถานะบัญชี}{สิทธิ์ห้องตามเวลา}{Machine + Agent session}
+การสมัครผ่านหน้าเว็บสร้าง \code{GUEST/PENDING}; เจ้าหน้าที่อนุมัติเป็น \code{APPROVED} หรือปฏิเสธเป็น \code{REJECTED}. นักศึกษา Google ใหม่ใช้โดเมน \code{bumail.net} ที่ยืนยันอีเมลแล้ว และถูกสร้างเป็น \code{STUDENT/APPROVED}. บัญชี ADMIN/SUPER\_ADMIN ที่มีอยู่ใช้ Google ได้เมื่ออีเมลยืนยัน โดย role ยึดฐานข้อมูล. ดูสิทธิ์หน้า Admin จาก server action/API ไม่ใช่รายการเมนูอย่างเดียว
+\source{web/src/lib/permissions.ts; web/src/lib/auth.ts; web/src/lib/google-sign-in.ts; web/src/lib/admin-nav.ts; web/src/app/api/agent/auth/route.ts}
+
+\chapter{สมัครบัญชีและเข้าสู่ระบบ}
+\section*{สมัคร Guest}
+\begin{enumerate}
+\step{เปิด \code{/register} กรอกชื่อ อีเมล รหัสผ่าน และเบอร์โทรถ้ามี; หน้าฟอร์มตรวจรหัสผ่านอย่างน้อย 6 ตัวอักษรและยืนยันซ้ำ}
+\step{ส่งแบบฟอร์ม ระบบตรวจอีเมลซ้ำและเก็บรหัสผ่านแบบ bcrypt; บัญชีใหม่มี role \code{GUEST} สถานะ \code{PENDING}}
+\step{รอผู้ดูแลตรวจที่ \code{/admin/users}. หากยังไม่อนุมัติ Guest ใช้ Room Finder/booking ไม่ได้; หากถูกปฏิเสธให้ติดต่อผู้ดูแล}
+\end{enumerate}
+\section*{เข้าสู่ระบบและจัดการบัญชี}
+ที่ \code{/login} ใช้อีเมล/รหัสผ่าน หรือ Google ตามกฎโดเมนข้างต้น หากข้อมูลผิดจะไม่สร้าง web session. หน้า \code{/profile} แก้ชื่อ/โทรศัพท์และเปลี่ยนรหัสผ่านด้วยรหัสเดิมได้ นักศึกษาผูก student ID 10 หลักครั้งแรก; หากต้องแก้ภายหลังให้ติดต่อ admin. ไม่พบ workflow ส่งอีเมล reset password อัตโนมัติในโค้ดที่ตรวจ การ logout เว็บไม่ใช่การ logout Agent session บนเครื่องแล็บ
+\warn{บัญชีที่ login ด้วย Google และมีรหัสผ่านสุ่มภายใน ไม่ควรอ้างว่าผู้ใช้รู้รหัสผ่านนั้น การเปลี่ยนรหัสผ่านที่หน้าโปรไฟล์ต้องผ่านรหัสปัจจุบันตามโค้ด}
+\source{web/src/actions/auth.ts; web/src/lib/auth.ts; web/src/actions/profile.ts; web/src/app/(auth)/register/page.tsx}
+
+\chapter{คู่มือนักศึกษา}
+\section*{Dashboard และตารางเรียน}
+หลัง login เข้า \code{/dashboard} เพื่อดูข้อมูลห้อง ตารางเรียน และรายการที่เกี่ยวข้องกับบัญชี ตารางเรียนสัมพันธ์กับภาคการศึกษาที่ระบบกำหนด; ถ้าไม่พบรายการให้ตรวจ semester และ student ID ก่อน ระบบใช้วัน/เวลาแบบ Asia/Bangkok ในการให้สิทธิ์ห้อง ผู้ใช้ควรตรวจความถูกต้องของวิชา ห้อง วัน และช่วงเวลาเสมอ
+\section*{นำเข้าตาราง BU Mobile ด้วย OCR}
+\begin{enumerate}
+\step{เตรียมภาพหน้าจอตารางเรียนที่ตัวอักษรชัด ครบชื่อวิชา วัน เวลา และห้อง; เปิดแผง OCR ใน Dashboard}
+\step{เลือกภาพ ระบบโหลด \code{tesseract.js@5.1.1} ใน browser แล้วอ่านข้อความจากภาพ}
+\step{ตรวจ preview ที่แยกรายการพร้อมคำเตือน/ข้อผิดพลาด; ตรวจ course code, section, ชื่อวิชา, วัน, slot และห้อง}
+\step{แก้ข้อมูลที่จำเป็นใน preview ตาม UI แล้วสั่ง import เฉพาะรายการที่พร้อม ระบบรวมรายการซ้ำที่ parser พบ; ตรวจตารางที่บันทึกแล้วอีกครั้ง}
+\end{enumerate}
+\note{OCR เป็นการช่วยอ่านภาพ ไม่ใช่หลักฐานว่าข้อมูลถูกต้องทุกช่อง ข้อความดิบและ parser debug มีไว้ตรวจปัญหาใน UI; อย่าใช้ภาพตารางจริงของผู้อื่นในคู่มือหรือการสาธิต}
+\section*{ค้นหาห้องและจอง}
+เปิด Room Finder จาก Dashboard เลือกวันที่, slot, จำนวนผู้ใช้, ความสามารถที่ต้องการ, อาคารและชั้นตามตัวกรองที่ UI มี ผล \code{Available Now} ขึ้นกับช่วงเวลาปัจจุบัน ตารางเรียน การจอง หน้าต่างเปิดให้จอง การปิดห้อง และความจุ ห้องที่เปิด booking แต่ยังไม่มี availability window จะถูกปฏิเสธแบบ fail-closed
+
+เลือกห้องและ slot $\rightarrow$ ตรวจผู้เข้าร่วม $\rightarrow$ ยืนยันคำขอ. การจองเดี่ยวคือผู้เข้าร่วมหนึ่งคน; booking แบบกลุ่มใช้ snapshot รายชื่อสมาชิก ณ เวลาสร้าง booking. สถานะ \code{PENDING} ต้องรออนุมัติ; \code{APPROVED} ให้สิทธิ์ตามช่วงเวลาที่อนุมัติ การสร้าง booking ยังไม่สร้าง session, access token หรือสั่งประตูเปิด หน้าสร้าง Group QR ใน Dashboard ถูกปิดด้วย \code{ENABLE_GROUP_UI = false} แม้มีโค้ดกลุ่มอยู่
+\flowfour{การจองห้องของนักศึกษา (แผนภาพอธิบาย)}{ค้นหาวันและ slot}{เลือกห้อง/ผู้เข้าร่วม}{ตรวจเงื่อนไข}{PENDING หรือ APPROVED}
+\section*{เข้าห้องและประวัติ}
+สิทธิ์ปัจจุบันมาจาก \code{CLASS}, booking ที่อนุมัติและมีชื่อผู้ใช้ใน participant snapshot, หรือ \code{LEGACY_TOKEN} ที่ออกให้ตนเอง. CLASS เริ่มก่อนเวลาเรียน 30 นาที. ที่ Gate สามารถสแกน QR token หรือใช้ face verification ตามช่องทางที่เปิดใช้; successful face check-in/check-out บันทึก Session. QR token เดิมมี validation ของตนเองตามบท 20; อย่าสมมติว่า QR ทุกอันให้สิทธิ์ผ่าน entitlement engine แบบเดียวกัน. ตรวจประวัติใน Dashboard/รายงานตามสิทธิ์
+\source{web/src/components/ocr-timetable-panel.tsx; web/src/lib/availability.ts; web/src/lib/room-booking.ts; web/src/lib/room-entitlement.ts; web/src/app/(app)/dashboard/dashboard-client.tsx}
+
+\chapter{คู่มือ Guest}
+Guest สมัครที่ \code{/register} แล้วรออนุมัติจาก Admin. หลังสถานะ \code{APPROVED} จึงค้นหาและจองห้องที่ตั้ง \code{guestAccess=true} และไม่ใช่ \code{staffOnly}. การเลือกเวลาและอนุมัติ booking ใช้หลักเดียวกับนักศึกษา แต่ Guest ไม่มีเส้นทางลงทะเบียนใบหน้าใน \code{/api/face/enroll}; การสาธิต Gate ด้วยใบหน้าของ Guest จึงไม่ใช่ workflow ที่รองรับเต็มรูปแบบในรุ่นนี้
+
+\begin{enumerate}
+\step{ตรวจสถานะบัญชีและ login เว็บ}
+\step{เปิด Room Finder; ถ้าห้องไม่ปรากฏ ให้ Admin ตรวจ \code{guestAccess}, \code{staffOnly}, เวลาเปิด และความจุ}
+\step{ส่ง booking และรออนุมัติหากนโยบายห้องเป็น MANUAL}
+\step{ดูสถานะคำขอและติดต่อ Admin ถ้าถูกปฏิเสธ; อย่าใช้ QR หรือบัญชีของผู้อื่นแทน}
+\end{enumerate}
+\source{web/src/lib/permissions.ts; web/src/actions/auth.ts; web/src/app/api/face/enroll/route.ts; web/src/lib/room-booking.ts}
+
+\chapter{คู่มือ Admin}
+เมนูของ Admin ประกอบด้วย ภาพรวม, จัดการผู้ใช้, จัดการห้อง, คำขอจองห้อง, ตารางจองห้อง, นำเข้าตารางเรียน, ติดตามการใช้งาน, System Health, ประวัติการใช้งาน, รายงาน และวิเคราะห์ข้อมูล. หน้า \code{/admin/system} สงวนให้ SUPER\_ADMIN ตามการนำทางและ server action
+
+\section*{งานประจำวัน}
+\begin{enumerate}
+\step{เปิด \code{/admin/dashboard} ตรวจภาพรวม แล้วไป \code{/admin/users} เพื่ออนุมัติ Guest/จัดการบัญชีตามสิทธิ์}
+\step{ที่ \code{/admin/rooms} ตรวจรหัสห้อง สถานะ ความจุ capabilities, guest access, staff-only, นโยบาย \code{AUTO/MANUAL}, availability windows และ closures}
+\step{ที่ \code{/admin/bookings} ตรวจคำขอ \code{PENDING}, ผู้ร่วมจอง, วัน/slot และความขัดแย้งก่อนอนุมัติหรือปฏิเสธ; ดู \code{/admin/calendar} ประกอบ}
+\step{ที่ \code{/admin/schedule} นำเข้าตารางเรียนตามภาคเรียน และตรวจแถวผิดพลาดก่อนใช้งาน Gate}
+\step{ที่ \code{/admin/tracking} ดูเครื่อง Online, ผู้ใช้ปัจจุบัน และประวัติกิจกรรม; Online ของเครื่องไม่ยืนยันว่ามีนักศึกษา login Agent}
+\step{ตรวจ \code{/admin/diagnostics}, \code{/admin/logs}, \code{/admin/reports}, \code{/admin/analytics} เพื่อวิเคราะห์เหตุการณ์และส่งออกข้อมูลตามที่หน้าเว็บรองรับ}
+\end{enumerate}
+Admin Tracking มีเมนูสร้าง maintenance code ผูกเครื่องและ action; code มีอายุ 5 นาทีและใช้ครั้งเดียว การแก้ website blacklist ผ่านหน้า Tracking เป็นการตั้งค่า backend; การบังคับใช้จริงขึ้นกับ Agent/OS และยังไม่ควรอ้างว่าครบทุกแพลตฟอร์ม
+\source{web/src/lib/admin-nav.ts; web/src/actions/agent.ts; web/src/app/admin/tracking/tracking-client.tsx; web/src/lib/room-admin.ts}
+
+\chapter{คู่มือ Super Admin}
+SUPER\_ADMIN มีเมนู Admin ทั้งหมดและหน้า \code{/admin/system} เพิ่มเติม ใช้ตั้งค่าระบบและจัดการ Tracking Agent Deployment. การสร้าง batch ต้องเลือกห้องที่ active และจำนวนเต็ม 1--100 เครื่องต่อ batch. CSV ที่ดาวน์โหลดได้ครั้งเดียวควรเก็บในพื้นที่จำกัดสิทธิ์และแจกหนึ่ง code ต่อหนึ่งเครื่อง
+การตั้งค่า SUPER\_ADMIN คนแรกเป็นขั้นตอนที่ต้องจัดการโดยผู้ดูแลระบบที่ได้รับมอบหมาย: seed script ที่ตรวจสร้างบัญชีตัวอย่าง role \code{ADMIN} ไม่ได้สร้าง SUPER\_ADMIN. การสร้าง/เลื่อนสิทธิ์ผู้ดูแลผ่านเว็บต้องมี SUPER\_ADMIN อยู่ก่อน จึงไม่ควรอ้างว่ามี bootstrap อัตโนมัติหรือรัน seed ตัวอย่างบน production
+\begin{enumerate}
+\step{เปิด \code{/admin/system} ส่วน Tracking Agent Deployment; เลือกห้องและจำนวนเครื่อง}
+\step{สร้าง batch; ตรวจ room code, จำนวนที่ร้องขอ และเวลา expiry}
+\step{ดาวน์โหลด CSV ใน browser ทันที เก็บอย่างปลอดภัย; แจก code ตาม machine code ที่จองไว้}
+\step{ติดตั้ง PKG/EXE/DEB ให้ตรง OS; เปิด UI และกรอก code}
+\step{กลับมาดูสถานะ \code{PENDING}, \code{ACTIVATED}, \code{REVOKED}, \code{EXPIRED}; ตรวจ Admin Tracking เพิ่มเติม}
+\end{enumerate}
+Batch code มีอายุ 7 วัน; code เดี่ยวจาก Admin Tracking มีอายุ 10 นาที. การ revoke batch ปิดเฉพาะ code ที่ยังไม่ใช้ ไม่ได้เพิกถอน machine ที่ activate ไปแล้ว. Installer download ต้องตั้ง \code{AGENT_INSTALLER_DIR} และ stage artifact บน backend ก่อน หน้า System Control ยังมีตัวเลือกการตั้งค่าระบบอื่นตามโค้ด; เปลี่ยนค่าเฉพาะเมื่อทราบผลกระทบและบันทึกเหตุผล
+\source{web/src/actions/agent-deployments.ts; web/src/lib/agent-deployment-batches.ts; web/src/lib/agent-activation.ts; web/src/app/api/admin/agent/installers/[platform]/route.ts; web/prisma/seed.ts}

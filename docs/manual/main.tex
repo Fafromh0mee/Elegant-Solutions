@@ -1,0 +1,97 @@
+\documentclass[10pt,a4paper,oneside]{book}
+\usepackage[a4paper,top=22mm,bottom=21mm,left=22mm,right=20mm,headheight=15pt]{geometry}
+\usepackage{fontspec}
+\usepackage{polyglossia}
+\setdefaultlanguage{thai}
+\setotherlanguage{english}
+\setmainfont{LINE Seed Sans TH}
+\setsansfont{LINE Seed Sans TH}
+\newfontfamily\thaifont{LINE Seed Sans TH}
+\setmonofont{Menlo}[Scale=0.82]
+\newfontfamily\thaifonttt{LINE Seed Sans TH}
+\usepackage[table]{xcolor}
+\definecolor{brand}{HTML}{0052FF}
+\definecolor{navy}{HTML}{0F172A}
+\definecolor{muted}{HTML}{64748B}
+\definecolor{pale}{HTML}{E8F4FF}
+\definecolor{line}{HTML}{E2E8F0}
+\usepackage{hyperref}
+\hypersetup{colorlinks=true,linkcolor=brand,urlcolor=brand,pdftitle={Elegant Solution - คู่มือการใช้งาน การติดตั้ง และการบริหารจัดการระบบ},pdfauthor={Elegant Solution},pdfsubject={Complete System, Installation and Technical Manual},pdfkeywords={Elegant Solution, Tracking Agent, คู่มือ}}
+\usepackage{fancyhdr,booktabs,longtable,tabularx,array,enumitem,caption,tikz,listings}
+\usetikzlibrary{arrows.meta,positioning,shapes.geometric}
+\setlist{nosep,leftmargin=18pt,topsep=5pt}
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{5pt}
+\renewcommand{\arraystretch}{1.22}
+\setlength{\tabcolsep}{2.5pt}
+\newcolumntype{L}[1]{>{\raggedright\arraybackslash}p{#1}}
+\def\UrlBreaks{\do\/\do\-\do\_\do\.\do\;}
+\Urlmuskip=0mu plus 1mu
+\emergencystretch=3em
+\tolerance=2000
+\hbadness=10000
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{\small\color{muted}Elegant Solution \quad / \quad คู่มือระบบ 0.5.0}
+\fancyhead[R]{\small\color{muted}\nouppercase{\leftmark}}
+\fancyfoot[L]{\small\color{muted}ฉบับตรวจจากโค้ด 12 พ.ย. 2026}
+\fancyfoot[R]{\small\color{muted}\thepage}
+\renewcommand{\headrulewidth}{0.3pt}
+\renewcommand{\footrulewidth}{0pt}
+\fancypagestyle{plain}{\fancyhf{}\fancyfoot[R]{\small\color{muted}\thepage}\renewcommand{\headrulewidth}{0pt}}
+\renewcommand{\chaptername}{บทที่}
+\renewcommand{\contentsname}{สารบัญ}
+\renewcommand{\figurename}{ภาพที่}
+\renewcommand{\tablename}{ตารางที่}
+\newcommand{\code}[1]{{\small\texttt{\detokenize{#1}}}}
+\newcommand{\source}[1]{\par{\footnotesize\color{muted}หลักฐานใน repository: \nolinkurl{#1}}\par}
+\newcommand{\status}[1]{{\color{brand}\bfseries #1}}
+\newcommand{\note}[1]{\par\noindent\colorbox{pale}{\parbox{0.955\linewidth}{\textbf{หมายเหตุ}\quad #1}}\par}
+\newcommand{\warn}[1]{\par\noindent\colorbox{line}{\parbox{0.955\linewidth}{\textbf{ข้อควรระวัง}\quad #1}}\par}
+\newcommand{\step}[1]{\item #1}
+\lstset{basicstyle=\ttfamily\footnotesize,breaklines=true,breakatwhitespace=false,frame=single,rulecolor=\color{line},backgroundcolor=\color{pale!25},columns=fullflexible,keepspaces=true,showstringspaces=false,aboveskip=7pt,belowskip=7pt}
+\input{figures/diagrams}
+\begin{document}
+\frontmatter
+\begin{titlepage}
+\pagecolor{pale}\color{navy}
+\vspace*{25mm}
+\begin{center}
+\begin{tikzpicture}[scale=0.82]
+  \fill[brand!22,rounded corners=17pt] (0,0) rectangle (3.2,4.1);
+  \draw[brand,line width=7pt,line cap=round] (0.7,1.5) .. controls (1.5,0.6) and (2.5,1.7) .. (3.6,2.8);
+  \draw[brand!80!black,line width=4pt,line cap=round] (1.05,3) -- (1.05,3.3);
+  \draw[brand!80!black,line width=4pt,line cap=round] (2.25,3) -- (2.25,3.3);
+\end{tikzpicture}
+\vspace{15mm}
+{\fontsize{31}{38}\selectfont\bfseries Elegant Solution\par}
+\vspace{9mm}
+{\fontsize{18}{27}\selectfont คู่มือการใช้งาน การติดตั้ง\par และการบริหารจัดการระบบ\par}
+\vspace{7mm}
+{\large Complete System, Installation \& Technical Manual\par}
+\vfill
+{\color{brand}\rule{0.68\textwidth}{1.5pt}\par}
+\vspace{6mm}
+{\large Version 0.5.0 \quad | \quad 12 พฤศจิกายน 2026\par}
+{\small อ้างอิง repository ที่ commit \code{ada86dadbaa1e4711cca99c56c1f1d6d83b2174a}\par}
+\end{center}
+\end{titlepage}
+\nopagecolor
+\chapter*{วิธีอ่านคู่มือนี้}
+\addcontentsline{toc}{chapter}{วิธีอ่านคู่มือนี้}
+คู่มือนี้ใช้โค้ดใน branch \code{feature/cross-platform-tracking-agent-exam} ณ commit ที่ระบุบนปกเป็นหลักฐานหลัก เอกสารประวัติและผลทดสอบที่ผู้ดูแลรายงานแยกจากพฤติกรรมที่ยืนยันในโค้ด ทุกตัวอย่างใช้ข้อมูลสมมติ คำสั่งที่แตะ production ต้องผ่านขั้นอนุมัติและสำรองข้อมูลตามบทที่ 9
+
+\textbf{ป้ายสถานะ}: \status{IMPLEMENTED} = มีโค้ด; \status{AUTOMATED TESTED} = มีผลตรวจอัตโนมัติที่รายงาน; \status{VERIFIED ON REAL HARDWARE} = มีผลจากเครื่องจริงที่ผู้ใช้รายงาน; \status{NOT YET VERIFIED} = ยังไม่มีหลักฐาน; \status{PARTIAL IMPLEMENTATION} = มีโค้ดบางส่วน; \status{NOT IMPLEMENTED} = ไม่พบการทำงานนั้นในโค้ดที่ตรวจ
+
+\note{ผลทดสอบ macOS ล่าสุดมาจากคำบอกและผล Terminal ที่ผู้ใช้ส่งในบทสนทนา: ติดตั้ง/activate, reboot แล้ว UI เปิดเอง, เครื่องเดิม Online ไม่มีรายการซ้ำ, จากนั้นถอนด้วย maintenance code และตรวจว่า receipt/service/UI หายไป การ login นักศึกษาและ foreground activity ยังไม่มีผลทดสอบบนเครื่องจริงในหลักฐานชุดนี้}
+\tableofcontents
+\mainmatter
+\part{คู่มือผู้ใช้}
+\input{chapters/part1}
+\part{การติดตั้งและบริหารระบบ}
+\input{chapters/part2}
+\part{อ้างอิงเทคนิคสำหรับผู้พัฒนา}
+\input{chapters/part3}
+\appendix
+\input{chapters/appendices}
+\end{document}

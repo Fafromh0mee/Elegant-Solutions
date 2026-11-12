@@ -1,0 +1,176 @@
+\chapter{สถาปัตยกรรมติดตั้งใช้งาน}
+Production ที่เคยตรวจบนเซิร์ฟเวอร์ Ubuntu 20.04.6 ใช้ Cloudflare เป็น HTTPS สาธารณะ, Nginx proxy ไป Next.js พอร์ต 3000, PM2 ชื่อ \code{elegant}, PostgreSQL 16 ใน Docker container \code{elegant-postgres} และ Face AI แยกพอร์ต 8000. นี่เป็น topology ที่บันทึกไว้ใน runbook; คู่มือนี้ไม่ได้ SSH เข้าเซิร์ฟเวอร์เพื่อยืนยันสถานะสด
+\flowfour{เส้นทาง production ที่บันทึกไว้ (แผนภาพสถาปัตยกรรม)}{Browser/Agent\ HTTPS}{Cloudflare\ Nginx}{Next.js\ PM2}{PostgreSQL\ Face AI}
+เครื่องแล็บ Windows/macOS/Ubuntu รัน Tracking Agent และติดต่อ \code{/api/agent/*} ทาง HTTPS. Backend เก็บแพ็กเกจ installer ใน directory ภายนอก web root เพื่อให้ Admin ดาวน์โหลด; \textbf{ไม่ต้องติดตั้ง Tracking Agent บนเซิร์ฟเวอร์ backend}. Machine service กับ UI อยู่บนเครื่องปลายทาง
+\section*{เครือข่ายและขอบเขต}
+ตรวจ DNS/TLS ไป \url{https://elegant.fafromh0me.com}; Nginx ส่งต่อ \code{localhost:3000}; PostgreSQL ผูก localhost. Runbook ระบุ Face AI พอร์ต 8000 บน server และการตรวจเดิมพบ origin พอร์ต 3000/8000 เข้าถึงจากภายนอกได้ จึงต้องตรวจ firewall/reverse proxy และวางแผนจำกัดการเข้าถึงใน change แยก Agent ใช้เฉพาะ HTTPS backend ไม่ต้องติดต่อ PostgreSQL หรือ Face AI โดยตรง
+\source{docs/PRODUCTION_PM2_DEPLOYMENT.md; agent/README.md; web/src/app/api/agent/heartbeat/route.ts}
+
+\chapter{Backend: ติดตั้งและ deploy}
+\section*{ก่อน deploy}
+สภาพ production ที่บันทึกล่าสุดมี Node.js \code{v24.13.1}, npm \code{11.8.0}, PM2 \code{5.3.0}, global pnpm \code{8.8.0}; release ใหม่ใช้ \code{npx --yes pnpm@9.15.9} แบบแยก. RAM ว่างประมาณ 2.4 GiB, swap ถูกใช้ 1.8/4 GiB และ disk ว่าง 11 GB ณ preflight; ค่าจริงต้องตรวจซ้ำ. Repository production มีไฟล์แก้และ untracked จึงใช้ Git worktree/release directory ใหม่ ไม่ overwrite checkout เดิม
+
+\begin{lstlisting}[language=bash]
+# ตรวจอ่านอย่างเดียวบน server ก่อนเริ่มขั้นเปลี่ยนระบบ
+node --version
+pm2 list
+free -h
+df -h /home/lamy
+sudo docker exec elegant-postgres sh -lc \
+  'pg_isready -U "$POSTGRES_USER" -d "$POSTGRES_DB"'
+git -C /home/lamy/Elegant-Solutions status --short
+\end{lstlisting}
+ตั้ง release จาก full commit SHA ที่อนุมัติแล้วตาม \code{docs/PRODUCTION_PM2_DEPLOYMENT.md}. คัดลอก runtime \code{.env} แบบรักษาสิทธิ์ 600 และตรวจด้วย \code{cmp -s}; ห้ามพิมพ์ค่า secret. ตรวจ \code{DATABASE_URL}, \code{AUTH_SECRET}, \code{AUTH_URL} และ environment ที่เกี่ยวข้องว่ามีค่าและไม่ขัดกับ PM2 เดิมโดยไม่แสดงค่า. \code{AGENT_INSTALLER_DIR} ชี้ directory ของ artifacts ซึ่งไม่อยู่ใน web root
+\warn{ห้ามรัน \code{web/prisma/seed.ts} กับ production เพื่อสร้าง Super Admin: script นี้สร้างบัญชีตัวอย่างด้วย credential ที่ฝังไว้และไม่ได้สร้าง SUPER\_ADMIN. การเตรียมบัญชีผู้ดูแลคนแรกต้องทำตามกระบวนการอนุมัติและข้อมูลจริงของหน่วยงาน}
+
+\section*{ลำดับหลังอนุมัติ production change}
+\begin{enumerate}
+\step{สำรอง PostgreSQL ด้วย \code{pg_dump -Fc}; ตรวจ checksum และ \code{pg_restore --list}; ถ้าเป็นไปได้ restore ทดสอบสำเนาแยก}
+\step{สร้าง isolated release จาก commit ที่ตรวจ migration history แล้ว; ติดตั้ง dependencies ด้วย pnpm 9.15.9; รัน Prisma generate และ build โดยจำกัด worker/heap ตาม runbook}
+\step{ตรวจ \code{prisma migrate status}. หากแสดง pending เฉพาะรายการที่คาดจึงรัน \code{prisma migrate deploy}; ห้ามใช้ reset/db push แบบทำลายข้อมูล}
+\step{เริ่ม build ใหม่แบบ standalone บนพอร์ต 3001 เพื่อตรวจ \code{/api/liveness}; หลังผ่านจึงสลับ PM2 ตาม runbook และตรวจ HTTPS public endpoint}
+\step{บันทึก SHA, PM2 cwd/command, สถานะ migrations และ health checks; เก็บ release เดิมเพื่อ rollback}
+\end{enumerate}
+\flowfour{การปล่อย backend (แผนภาพอธิบาย)}{สำรอง DB}{Build release แยก}{Migrate + smoke 3001}{สลับ PM2/ตรวจผล}
+\warn{บล็อกต่อไปเป็นตัวอย่างคำสั่งสำหรับ release ที่แยกแล้ว ไม่ใช่คำสั่งให้รันทันทีบน production. ค่าภายใน \code{.env} และ backup ห้ามใส่ใน Git/คู่มือ}
+\begin{lstlisting}[language=bash]
+cd "$RELEASE/web"
+NODE_ENV=development npx --yes pnpm@9.15.9 install --frozen-lockfile
+npx --yes pnpm@9.15.9 exec prisma generate --config ./prisma.config.ts
+CIRCLE_NODE_TOTAL=2 NODE_OPTIONS=--max-old-space-size=1536 \
+  npx --yes pnpm@9.15.9 build
+# หลังอนุมัติและมี backup ที่ตรวจแล้วเท่านั้น:
+npx --yes pnpm@9.15.9 exec prisma migrate status --config ./prisma.config.ts
+npx --yes pnpm@9.15.9 exec prisma migrate deploy --config ./prisma.config.ts
+\end{lstlisting}
+คำสั่งสำรองและตรวจ archive บน server ใช้ \code{sudo docker exec} ตามสิทธิ์ที่ตรวจแล้ว. การอ่านรายการใน archive ไม่เท่ากับการ restore ทดสอบ; ก่อน cutover ต้องมีผล restore แยกในสภาพแวดล้อมที่ควบคุมได้
+\begin{lstlisting}[language=bash]
+# PRODUCTION CHANGE: ทำหลังอนุมัติเท่านั้น
+BACKUP_DIR=/home/lamy/elegant-db-backups
+install -d -m 700 "$BACKUP_DIR"
+BACKUP="$BACKUP_DIR/elegant_$(date +%Y%m%d_%H%M%S).dump"
+umask 077
+sudo docker exec elegant-postgres sh -lc \
+  'pg_dump -U "$POSTGRES_USER" -d "$POSTGRES_DB" -Fc' > "$BACKUP"
+pg_restore --list "$BACKUP" >/dev/null
+sha256sum "$BACKUP"
+\end{lstlisting}
+การ start build ใหม่ใช้ Node รัน standalone \code{server.js} ไม่พึ่ง global pnpm 8. Smoke test ที่พอร์ต 3001 ก่อน แล้วจึง cutover พอร์ต 3000 ผ่าน PM2. ตรวจจาก localhost และ public HTTPS; คำสั่งจริงต้องใช้ \code{STANDALONE_SERVER} และ \code{STANDALONE_DIR} ที่ตรวจแล้วจาก release ตาม runbook
+\begin{lstlisting}[language=bash]
+# PRODUCTION CHANGE: เฉพาะหลัง migrate/build/smoke ผ่าน
+pm2 stop elegant
+PORT=3000 HOSTNAME=0.0.0.0 pm2 start "$STANDALONE_SERVER" \
+  --name elegant-v050 --interpreter "$(command -v node)" \
+  --cwd "$STANDALONE_DIR"
+curl --fail --silent --show-error \
+  http://127.0.0.1:3000/api/liveness
+curl --fail --silent --show-error \
+  https://elegant.fafromh0me.com/api/liveness
+pm2 list
+pm2 save
+\end{lstlisting}
+Rollback แอปคือกลับไป PM2 release เดิมตาม runbook; schema ใหม่ถูกออกแบบให้ backward compatible กับแอปเดิม แต่การกู้ DB คือขั้นแยกที่ต้องวางแผน downtime/ข้อมูลใหม่หลัง backup. อย่าทับฐานข้อมูลสดด้วย dump อัตโนมัติ อ่านคำสั่ง PM2 cutover และ rollback แบบเต็มจาก runbook ก่อนปฏิบัติ
+\begin{lstlisting}[language=bash]
+# APP ROLLBACK: หลังอนุมัติแก้เหตุขัดข้อง
+pm2 stop elegant-v050 >/dev/null 2>&1 || true
+pm2 restart elegant
+curl --fail --silent --show-error \
+  https://elegant.fafromh0me.com/
+pm2 save
+\end{lstlisting}
+หากต้องกู้ฐานข้อมูล ให้ restore backup ลงฐาน \emph{ใหม่} ก่อน เปรียบเทียบ migration/จำนวน records และขออนุมัติแยกก่อนเปลี่ยน \code{DATABASE_URL}. การ restore ทับ production โดยตรงหลังมี writes ใหม่ทำข้อมูลหลังเวลาสำรองสูญหาย
+\source{docs/PRODUCTION_PM2_DEPLOYMENT.md; web/next.config.ts; web/prisma/schema.prisma}
+
+\chapter{Tracking Agent 0.5.0}
+Agent แยก \code{machine_service.py} จาก \code{session_ui.py}. Service เก็บ machine identity/API key ในพื้นที่ระบบ ส่ง heartbeat ทุก 10 วินาทีแม้ไม่มีนักศึกษา login และ sync config. UI ใน graphical session ใช้ code เปิดใช้งาน, login ผู้ใช้ และอ่าน foreground app/title เฉพาะเมื่อ Agent user session active. UI ติดต่อ service ผ่าน loopback \code{127.0.0.1:18767} โดย local bridge token; service ส่งข้อมูลไป backend
+\flowfour{องค์ประกอบ Agent (แผนภาพอธิบาย)}{UI ใน desktop}{Loopback + token}{Machine service}{HTTPS API}
+\section*{วงจร session และความเป็นส่วนตัว}
+Activation ใช้ code หกหลักครั้งเดียวและได้ machine code/API key ซึ่งบันทึกแบบสิทธิ์จำกัด. Agent login ตรวจ email/password บัญชี \code{APPROVED} และ entitlement ของห้องที่ผูกเครื่อง; backend ออก session token ที่ผูก user, machine, room และเวลาสิ้นสุด. เมื่อ session หมดอายุ service refresh สิทธิ์หรือ clear session. ไม่ส่งชื่อหน้าต่างโดยไม่มี session. Backend รับ machine-only heartbeat แล้วอัปเดต \code{lastSeen}; \code{AgentLog} สร้างเมื่อมี session ที่ใช้ได้
+\flowfour{Heartbeat และกิจกรรม (แผนภาพลำดับ)}{Boot service}{Machine heartbeat}{Agent login}{Activity + heartbeat}
+\note{Agent login ปัจจุบันไม่ล็อก macOS/Windows/Linux desktop ก่อนใช้งาน เครื่องยังใช้ได้โดยไม่ login Agent. นี่เป็นข้อจำกัดของการควบคุมการใช้เครื่อง และช่วงนั้นไม่มี activity ที่ผูกผู้ใช้}
+\source{agent/src/machine_service.py; agent/src/session_ui.py; agent/src/config.py; web/src/app/api/agent/heartbeat/route.ts; web/src/app/api/agent/auth/route.ts}
+
+\chapter{Batch Enrollment และรหัสเปิดใช้งาน}
+SUPER\_ADMIN สร้าง Deployment Batch ที่ \code{/admin/system}. Backend ตรวจห้อง active และจำนวน 1--100, จอง machine code รูปแบบ \code{<roomCode>-PC<sequence>}, สร้าง code หกหลักด้วย \code{randomInt}, hash ก่อนเก็บ และกำหนดหมดอายุ 7 วัน. Transaction ลองแก้ collision ตามจำนวนครั้งที่กำหนด. CSV ที่ browser ได้ครั้งเดียวมีคอลัมน์ \code{batch_id}, \code{room_code}, \code{machine_code}, \code{activation_code}, \code{expires_at} ตามลำดับ
+\flowfour{Batch Enrollment (แผนภาพอธิบาย)}{เลือกห้อง/จำนวน}{สร้าง batch + codes}{แจก CSV ครั้งเดียว}{activate รายเครื่อง}
+\begin{enumerate}
+\step{เลือกห้องและจำนวนเครื่องใน System Control; ตรวจเลขที่จองและวันหมดอายุ}
+\step{เก็บ CSV ในที่จำกัดสิทธิ์; แจกหนึ่งรหัสต่อหนึ่งเครื่อง ไม่ส่งผ่านช่องทางสาธารณะ}
+\step{ติดตั้งแพ็กเกจ OS ที่ถูกต้องแล้วกรอก code ใน UI; ตรวจ \code{machineCode/roomCode}}
+\step{ดู deployment progress ใน System Control และสถานะ Online ใน Admin Tracking}
+\end{enumerate}
+รหัสถูกใช้ได้ครั้งเดียว. การ revoke batch/code มีผลกับ code ที่ยังไม่ถูกใช้; เครื่องที่ activate แล้วต้อง deactivate/uninstall แยก. Failed attempts ถูกบันทึกและมี durable activation throttle. หาก reinstall หลังถอนซึ่งลบ config ต้องออก code ใหม่; ไม่ใช้ code เก่าซ้ำ
+\source{web/src/lib/agent-deployment-batches.ts; web/src/lib/agent-activation.ts; web/src/lib/agent-activation-throttle.ts; web/src/app/api/agent/activate/route.ts; web/src/app/admin/system/system-client.tsx}
+
+\chapter{ติดตั้งและถอน Agent บน Windows}
+เป้าหมาย Windows 10/11 x64. Installer คือ \code{ElegantAgentSetup_0.5.0_x64.exe} จาก Admin download หรือ artifact ที่ตรวจ SHA-256 แล้ว. Build บน Windows ใช้ Python 3.12, PyInstaller และ Inno Setup 6; ไม่ใช่ MSI. Installer ลง service \code{ElegantSolutionsMachine} และ UI auto-start ใน HKLM Run เมื่อผู้ใช้ Windows login
+\begin{enumerate}
+\step{รับ EXE จากผู้ดูแล; เทียบ hash กับ release ที่แจกอย่างปลอดภัย; login ด้วยบัญชี Administrator}
+\step{Run as administrator; รอ service แล้วเปิด UI. กรอก activation code ของเครื่องนี้}
+\step{ตรวจ service/Run registration ด้วย PowerShell ด้านล่าง; ตรวจเครื่อง Online ใน Admin Tracking ภายในประมาณ 10--30 วินาที}
+\step{ทดสอบ Agent login ด้วยบัญชีที่มี entitlement ปัจจุบัน, foreground activity, logout, machine-only heartbeat และ reboot}
+\end{enumerate}
+\begin{lstlisting}
+Get-Service ElegantSolutionsMachine
+sc.exe qc ElegantSolutionsMachine
+Get-ItemProperty 'HKLM:\Software\Microsoft\Windows\CurrentVersion\Run' -Name ElegantAgentUI
+Test-Path "$env:ProgramData\ElegantSolution\Agent\config.json"
+\end{lstlisting}
+Program files อยู่ \code{C:\Program Files\ElegantSolution\Agent}; config/API key/logs อยู่ \code{C:\ProgramData\ElegantSolution\Agent}. ถ้า UI ไม่ขึ้น ให้ตรวจ registry Run และ Windows Event Viewer. \textbf{ยังไม่มีหลักฐานติดตั้ง Windows จริง} จากชุดข้อมูลนี้
+\section*{ถอนและอัปเดต}
+ใน Admin Tracking สร้าง maintenance code ชนิด \code{UNINSTALL_AGENT} ของเครื่องนั้นก่อน แล้วเปิด \code{C:\Program Files\ElegantSolution\Agent\uninstall.bat} แบบ Administrator. Script ตรวจ code กับ backend, หยุด/ลบ service และ registry, ลบ process/งานเก่าที่ระบุ, ลบ hosts entries เฉพาะส่วนที่ Agent จัดการ แล้วลบ ProgramData/Program Files ของ Agent. Backend deactivate machine เมื่ออนุญาต code; หากขั้นลบในเครื่องล้มเหลวหลังยืนยัน code ให้หยุดและตรวจสถานะ ไม่ใช้คำสั่งลบสุ่ม. อัปเดตโดย installer ใหม่ทับ; config ใน ProgramData ไม่อยู่ใน payload
+\source{agent/build.bat; agent/setup.iss; agent/setup.bat; agent/uninstall.bat; agent/WINDOWS_INSTALLATION.md}
+
+\chapter{ติดตั้งและถอน Agent บน macOS}
+เลือก PKG ให้ตรง \code{uname -m}: \code{arm64} สำหรับ Apple Silicon หรือ \code{x86_64} สำหรับ Intel. PKG รุ่นพัฒนา \code{0.5.0} ยัง unsigned/unnotarized; ให้ผู้ดูแลประเมินแหล่งที่มาและ hash ก่อนอนุญาตเฉพาะแพ็กเกจที่เชื่อถือ อย่าปิด Gatekeeper ทั้งระบบ. การแจกจ่ายถาวรควรลงลายเซ็นและ notarize
+\begin{lstlisting}[language=bash]
+uname -m
+shasum -a 256 -c elegant-agent_0.5.0_darwin_$(uname -m).pkg.sha256
+sudo installer -pkg elegant-agent_0.5.0_darwin_$(uname -m).pkg -target /
+sudo launchctl print system/com.elegantsolution.agent.machine
+launchctl print gui/$(id -u)/com.elegantsolution.agent.session
+\end{lstlisting}
+PKG วาง binary ที่ \code{/Library/Application Support/ElegantSolution/bin/}; LaunchDaemon ทำงานตอน boot, LaunchAgent เริ่ม UI เมื่อ login desktop; config/API key ใน \code{/Library/Application Support/ElegantSolution/Agent/}. หลัง activate ตรวจ Admin Tracking $\rightarrow$ Agent login ที่มี entitlement $\rightarrow$ activity $\rightarrow$ logout $\rightarrow$ reboot. การอ่านชื่อ app/window ผ่าน System Events ต้องได้สิทธิ์ Automation/Accessibility; ถ้าไม่ได้สิทธิ์ activity อาจเป็น null แต่ heartbeat ต่อได้
+\section*{หลักฐานเครื่องจริงและถอน}
+ผู้ใช้รายงานว่า macOS PKG activate สำเร็จ, หลัง reboot UI เปิดเองไม่ต้อง activate ซ้ำ, Admin Tracking เห็นเครื่องเดิม Online โดยไม่ login นักศึกษาและไม่มีรายการซ้ำ. ต่อมารัน uninstaller แล้วได้ \code{Elegant Agent removed}; \code{pkgutil --pkg-info} ไม่พบ receipt และ \code{launchctl print} ไม่พบสอง service. นี่คือหลักฐานจากผู้ใช้ ไม่ใช่การตรวจเครื่องโดยผู้เขียนคู่มือโดยตรง. ผล Agent login/activity ยังไม่ยืนยัน
+\begin{lstlisting}[language=bash]
+# สร้าง UNINSTALL_AGENT maintenance code ใน Admin Tracking ก่อน
+sudo '/Library/Application Support/ElegantSolution/bin/uninstall-agent.sh'
+pkgutil --pkg-info com.elegantsolution.agent
+sudo launchctl print system/com.elegantsolution.agent.machine
+launchctl print gui/$(id -u)/com.elegantsolution.agent.session
+\end{lstlisting}
+Uninstaller ตรวจ code แล้วหยุด LaunchDaemon/LaunchAgent ลบ plist, binary, \code{Agent} และ \code{Bridge}, ลบ PKG receipt. ไม่ลบไฟล์ \code{/var/log/elegant-agent-service.log} และ \code{/var/log/elegant-agent-service.err} ตาม script. Backend deactivate machine เมื่อรับ code ถอนสำเร็จ; หาก local script ล้มเหลวภายหลัง อาจเกิดสถานะ deactivate ก่อนลบครบ. Reinstall หลังถอนต้องใช้ activation code ใหม่; update PKG ทับเก็บ config
+\source{agent/build-macos.sh; agent/macos/pkg-scripts/postinstall; agent/macos/uninstall-agent.sh; agent/MACOS_INSTALLATION.md; web/src/app/api/agent/maintenance/authorize/route.ts}
+
+\chapter{ติดตั้งและถอน Agent บน Ubuntu}
+เป้าหมาย Ubuntu 22.04/24.04 amd64. DEB เป็น frozen binary; machine service ใช้ \code{elegant-agent.service} ผ่าน systemd และ UI ใช้ XDG autostart หลัง graphical login. X11 อาจอ่าน foreground ผ่าน EWMH; Wayland ส่ง app/title เป็น null เมื่อ API ไม่รองรับ จึงต้องทดสอบ desktop จริง
+\begin{lstlisting}[language=bash]
+uname -m
+sha256sum -c elegant-agent_0.5.0_amd64.deb.sha256
+sudo apt install ./elegant-agent_0.5.0_amd64.deb
+systemctl status elegant-agent.service --no-pager
+systemctl is-enabled elegant-agent.service
+journalctl -u elegant-agent.service -n 50 --no-pager
+\end{lstlisting}
+เข้า desktop แล้วกรอก activation code ใน UI. ตรวจ Online, Agent login/activity, logout/heartbeat และ reboot. Config/API key อยู่ \code{/var/lib/elegant-agent/config.json}; token เชื่อม UI อยู่ \code{/run/elegant-agent/token}; binary ที่ \code{/usr/lib/elegant-agent/}. \textbf{ยังไม่มีหลักฐานติดตั้ง Ubuntu จริง} ในข้อมูลที่ตรวจ
+\section*{ถอน อัปเดต และ legacy}
+สร้าง \code{UNINSTALL_AGENT} maintenance code ใน Admin Tracking แล้วรัน \code{sudo elegant-agent-uninstall}; script ตรวจ code แล้ว \code{apt-get purge -y elegant-agent}. ตรวจ \code{systemctl status elegant-agent.service}, \code{dpkg -s elegant-agent} และไฟล์ config ตามนโยบาย package postrm. อัปเดตด้วย \code{sudo apt install ./<new-version>.deb}. การย้ายจาก user-level agent เดิมมี \code{sudo elegant-agent-migrate-legacy <desktop-username>} ซึ่งคัดลอก config เฉพาะเมื่อปลายทางว่างและปิด autostart เก่า; สำรอง config อย่างปลอดภัยก่อน
+\source{agent/build-linux.sh; agent/linux/elegant-agent.service; agent/linux/elegant-agent.desktop; agent/linux/uninstall-agent.sh; agent/linux/postrm; agent/LINUX_INSTALLATION.md}
+
+\chapter{บำรุงรักษาและแก้ปัญหา}
+ใช้รูปแบบ อาการ $\rightarrow$ สาเหตุที่เป็นไปได้ $\rightarrow$ ตรวจ $\rightarrow$ แก้ $\rightarrow$ ยืนยัน. เริ่มจากการตรวจแบบอ่านอย่างเดียวก่อนเสมอ
+\begin{longtable}{L{31mm}L{40mm}L{42mm}L{43mm}}
+\toprule อาการ & สาเหตุ & ตรวจ & แก้และยืนยัน \\ \midrule\endhead
+UI ไม่เปิด & graphical login/autostart ไม่ทำงาน & launchctl/Run/XDG entry & เปิด UI ตามคู่มือ OS แล้วทดสอบ login ใหม่ \\
+Machine service หยุด & service startup/permission & \code{launchctl}, \code{Get-Service}, \code{systemctl} & ตรวจ log, restart ด้วย maintenance code, ดู heartbeat \\
+Activate ไม่ได้ & code ผิด/หมดอายุ/ใช้แล้ว, URL/TLS & code status, HTTPS, response 403/429 & ออก code ใหม่ให้เครื่องถูกต้อง; รอตาม Retry-After \\
+เครื่อง Offline & heartbeat หยุด, backend/เน็ตล่ม & service status, DNS/TLS, \code{/api/liveness} & กู้การเชื่อมต่อ; รอ heartbeat รอบใหม่ \\
+Agent login ถูกปฏิเสธ & บัญชีไม่ approved/ไม่มี entitlement & ตรวจ role, room, CLASS/BOOKING/token และเวลา & แก้ข้อมูลต้นเหตุแล้ว login ใหม่ \\
+ไม่มีชื่อแอป & ไม่ login Agent, macOS permission, Wayland & ตรวจ session/UI/permission & ให้สิทธิ์ OS ตามนโยบาย; ตรวจ activity ใหม่ \\
+Maintenance code ถูกปฏิเสธ & ผิด action/เครื่อง, หมด 5 นาที, ใช้แล้ว & ตรวจรายการใน Admin Tracking & สร้าง code ใหม่โดยไม่ deactivate เครื่องก่อน \\
+Checksum ไม่ตรง & artifact ผิด/ดาวน์โหลดเสีย & เทียบ SHA-256 จาก release ที่เชื่อถือ & หยุดติดตั้ง ดาวน์โหลดใหม่ \\
+\bottomrule
+\end{longtable}
+\warn{หาก uninstall ได้รับอนุญาตจาก backend แล้วแต่ลบไฟล์ในเครื่องไม่สำเร็จ ให้บันทึก error และสถานะ service ก่อนดำเนินการต่อ เพราะ backend อาจ deactivate machine ไปแล้ว. อย่าเผยแพร่ config, API key, CSV หรือ log ที่มีข้อมูลบุคคล}
+\source{agent/src/maintenance_cli.py; agent/src/api_client.py; web/src/app/api/agent/activate/route.ts; web/src/app/api/agent/maintenance/authorize/route.ts}

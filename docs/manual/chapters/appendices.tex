@@ -1,0 +1,86 @@
+\chapter{เช็กลิสต์ปฏิบัติงาน}
+ทุกข้อเป็นเกณฑ์ที่ผู้ดูแลควรลงชื่อ/บันทึกผลในระบบงานของตนเอง ไม่ใช่หลักฐานว่าผ่านแล้ว คอลัมน์ผลให้ทำเครื่องหมายเมื่อมีหลักฐานจริง
+\begin{longtable}{L{46mm}L{101mm}}
+\toprule งาน & เกณฑ์ตรวจเสร็จ \\ \midrule\endhead
+Backend ใหม่ & ตรวจ Node/pnpm/PM2/PostgreSQL, SHA release, .env โดยไม่เปิดเผยค่า, backup+restore test, migration status, build, smoke 3001, public health \\
+Super Admin ครั้งแรก & บัญชี SUPER\_ADMIN ที่ได้รับอนุญาต login ได้; หน้า \code{/admin/system} แสดงเฉพาะ role นี้; บันทึกเจ้าของบัญชี \\
+สร้างห้อง & roomCode ไม่ซ้ำ, active, capacity, capabilities, bookingEnabled, approvalPolicy, guestAccess/staffOnly, windows/closures ถูกต้อง \\
+นำเข้าตาราง & semester/day/slot/room/user ตรงข้อมูลจริง; preview/รายการผิดพลาดตรวจแล้ว \\
+Deployment Batch & ห้อง active; จำนวน 1--100; CSV ดาวน์โหลดครั้งเดียว; แจก code ตาม machine code; เก็บ CSV จำกัดสิทธิ์ \\
+ติดตั้งหนึ่งเครื่อง & hash installer ตรง; OS/architecture ตรง; service/UI เริ่ม; activate; room/machine code ตรง; heartbeat Online \\
+ติดตั้ง 30 เครื่อง & แบ่ง batch ตามห้อง; บันทึก asset/machine code; ตรวจไม่ใช้ code ซ้ำ; ตรวจ Online ครบและไม่มีเครื่องซ้ำ \\
+Agent login & บัญชี approved มี entitlement ณ เวลานั้น; session ผูกเครื่อง/ห้อง/ผู้ใช้; logout แล้ว heartbeat ยังอยู่ \\
+ทดสอบ OCR & ภาพสมมติที่อ่านได้; preview, warning, duplicate และ DB import ถูกต้อง \\
+ทดสอบ Face & ลงทะเบียนด้วยผู้มีสิทธิ์; ตรวจ match/no match และ entitlement; ไม่อ้าง liveness/ประตู \\
+ทดสอบ QR & UUID token ใน QR; gate สแกน; room/time validation; ตรวจผล check-in/out แยก \\
+ถอน Windows & maintenance code ตรงเครื่อง/action; service/Run/ไฟล์หาย; backend inactive \\
+ถอน macOS & receipt/LaunchDaemon/LaunchAgent หาย; backend inactive; ตรวจ log ที่ script ไม่ลบตามนโยบาย \\
+ถอน Ubuntu & package/service/config ตาม postrm; backend inactive; legacy autostart ไม่เหลือ \\
+อัปเดต Agent & hash/version ใหม่; config เดิมอยู่; service/UI เริ่ม; machine code เดิม; heartbeat กลับมา \\
+สำรอง DB & \code{pg_dump -Fc}, SHA-256, \code{pg_restore --list}, restore แยกตามรอบทดสอบ \\
+กู้ service & ระบุเหตุ/เวลา/ผู้รับผิดชอบ; rollback app ตาม runbook; ตรวจ PM2, Nginx, DB, HTTPS, Agent heartbeat \\
+\bottomrule
+\end{longtable}
+
+\chapter{คำสั่งอ้างอิงแบบอ่านอย่างเดียว}
+เลือกชุดคำสั่งตาม OS ของเครื่องที่จะตรวจ ไม่รัน installer/uninstaller บนเครื่องที่ไม่ใช่เป้าหมาย ไม่คัดลอกผลที่มี API key หรือข้อมูลส่วนบุคคลลง ticket สาธารณะ
+\begin{lstlisting}[language=bash]
+# macOS หลังติดตั้ง
+sudo launchctl print system/com.elegantsolution.agent.machine
+launchctl print gui/$(id -u)/com.elegantsolution.agent.session
+pkgutil --pkg-info com.elegantsolution.agent
+
+# Ubuntu หลังติดตั้ง
+systemctl status elegant-agent.service --no-pager
+systemctl is-enabled elegant-agent.service
+journalctl -u elegant-agent.service -n 50 --no-pager
+
+# Backend health แบบไม่ต้องมี credential
+curl --fail --silent --show-error \
+  https://elegant.fafromh0me.com/api/liveness
+\end{lstlisting}
+\begin{lstlisting}
+# Windows PowerShell หลังติดตั้ง
+Get-Service ElegantSolutionsMachine
+sc.exe qc ElegantSolutionsMachine
+Get-ItemProperty 'HKLM:\Software\Microsoft\Windows\CurrentVersion\Run' -Name ElegantAgentUI
+\end{lstlisting}
+ถ้า \code{launchctl print} หลังถอนรายงาน \code{Could not find service} และ \code{pkgutil} รายงาน \code{No receipt} นั่นสอดคล้องกับการถอนสำเร็จ; ตรวจ Admin Tracking แยกอีกครั้ง
+
+\chapter{อภิธานศัพท์และสถานะ}
+\begin{longtable}{L{41mm}L{106mm}}
+\toprule คำ & ความหมายในระบบนี้ \\ \midrule\endhead
+Web session & ตัวตนผู้ใช้เว็บจาก NextAuth JWT; แยกจาก Agent session \\
+Machine identity & machine code/API key หลัง activation; ใช้ machine heartbeat \\
+Agent session & token ที่ผูกผู้ใช้-เครื่อง-ห้องและหมดอายุตาม entitlement \\
+Entitlement & สิทธิ์ใช้ห้อง ณ เวลาใช้งานจาก CLASS, BOOKING หรือ LEGACY\_TOKEN \\
+Heartbeat & ข้อความจาก service เพื่ออัปเดต lastSeen; ไม่ยืนยันผู้ใช้ \\
+Online & เครื่อง active และ lastSeen ภายใน 30 วินาที \\
+Deployment Batch & ชุด code ที่จองให้ห้องและจำนวนเครื่อง; code ใช้ครั้งเดียว \\
+Maintenance code & code หกหลักผูกเครื่อง/action มีอายุ 5 นาที \\
+Gate & หน้าเว็บ/endpoint ตรวจ QR หรือใบหน้า; ไม่ใช่หลักฐานฮาร์ดแวร์เปิด \\
+Preview & รายการ OCR ก่อนบันทึกที่ผู้ใช้ต้องตรวจ \\
+\bottomrule
+\end{longtable}
+
+\chapter{บัญชีประเด็นเอกสารและแหล่งอ้างอิง}
+\section*{ข้อแตกต่างและสิ่งที่ควรตรวจต่อ}
+\begin{enumerate}
+\step{\code{agent/*INSTALLATION.md} และ \code{agent/EXAM_CHEAT_SHEET.md} ยังกล่าวถึง production endpoint 404 เมื่อ 11 พ.ย. 2026; สถานะนั้นเก่ากว่าผลการติดตั้ง/activate macOS ที่ผู้ใช้รายงาน}
+\step{Agent 0.5.0 ไม่บังคับ OS login ก่อน desktop ใช้งาน; หากต้องการควบคุมเครื่องแล็บจริงต้องออกแบบ OS-level policy และทดสอบบนเครื่องที่จัดการได้}
+\step{\code{web/prisma/seed.ts} สร้างบัญชีตัวอย่าง ADMIN พร้อม credential ที่ฝังใน source แต่ไม่มี SUPER\_ADMIN; ต้องวางขั้น provision ครั้งแรกที่ปลอดภัยก่อนใช้ระบบจริง และห้ามรัน seed นี้บน production}
+\step{QR access token legacy และ room entitlement ใหม่มีเงื่อนไขไม่เหมือนกัน; ทบทวน policy ก่อนขยายการใช้งาน Gate จริง}
+\step{Room Finder ซ่อนห้อง \code{staffOnly} จาก Guest แต่ \code{generateAccessTokenAction} ตรวจ \code{guestAccess} โดยไม่ตรวจ \code{staffOnly} โดยตรง; ทบทวนการบังคับสิทธิ์ Gate/token ก่อนใช้งานจริง}
+\step{Face AI เลือกหน้าที่ detection score สูงสุดเมื่อภาพมีหลายหน้า; ยังไม่มี liveness/anti-spoofing ใน flow ที่ตรวจ}
+\step{macOS uninstaller ไม่ลบ log สองไฟล์ใน \code{/var/log}; backend deactivate machine ในขั้น authorize ก่อน local cleanup จบ}
+\step{Windows/Ubuntu ยังต้องติดตั้งและทดสอบ reboot/activity จริง; macOS foreground activity และ student login ก็ยังไม่มีผลทดสอบที่ส่งมา}
+\end{enumerate}
+\section*{แผนที่หลักฐานใน repository}
+\begin{itemize}
+\item โครงสร้างและ role: \code{web/prisma/schema.prisma}, \code{web/src/lib/permissions.ts}, \code{web/src/lib/auth.ts}
+\item ห้องและการจอง: \code{web/src/lib/availability.ts}, \code{web/src/lib/room-booking.ts}, \code{web/src/lib/room-entitlement.ts}
+\item OCR/Face/Gate: \code{web/src/lib/ocr-timetable.ts}, \code{web/src/app/api/face/*}, \code{web/src/actions/access-tokens.ts}
+\item Agent: \code{agent/src/machine_service.py}, \code{agent/src/session_ui.py}, \code{agent/build-macos.sh}, \code{agent/build-linux.sh}, \code{agent/build.bat}
+\item Deployment: \code{docs/PRODUCTION_PM2_DEPLOYMENT.md}; Agent API: \code{web/src/app/api/agent/*}
+\end{itemize}
+\note{ภาพทั้งหมดในคู่มือเป็นแผนภาพต้นฉบับจากโค้ด ไม่ใช่ภาพหน้าจอ production; ตัวอย่างรหัส/ข้อมูลใช้ข้อความสมมติ ไม่มี backup, secret หรือข้อมูลใบหน้าจริงอยู่ในเอกสาร}
