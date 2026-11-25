@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { isAdminRole } from "@/lib/permissions";
 
-const publicRoutes = ["/", "/login", "/register", "/pending-approval", "/maintenance", "/contact", "/survey"];
+const publicRoutes = ["/", "/login", "/register", "/pending-approval", "/maintenance", "/contact", "/survey", "/slides"];
 const authRoutes = ["/login", "/register"];
 
 export default auth((req) => {
@@ -33,6 +33,11 @@ export default auth((req) => {
 
   // Allow gate routes (kiosk mode, no auth required)
   if (pathname.startsWith("/gate")) {
+    return NextResponse.next();
+  }
+
+  // Presentation screenshots are static assets used by the public /slides route.
+  if (pathname.startsWith("/presentation-assets")) {
     return NextResponse.next();
   }
 

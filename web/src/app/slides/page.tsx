@@ -6,7 +6,7 @@ import "@/presentation/presentation.css";
 
 // Final project slides, rendered from the product's own components and tokens.
 // Presentation-only: available in development, and in a production build only when
-// ENABLE_PRESENTATION=1. Behind the normal login like every non-public route.
+// ENABLE_PRESENTATION=1. The route is public so the presenter does not need a demo account.
 
 // Read ENABLE_PRESENTATION at request time, not at build time.
 export const dynamic = "force-dynamic";
